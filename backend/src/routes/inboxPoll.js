@@ -27,18 +27,19 @@ router.all("/poll-inbox", async (req, res) => {
     // rather than reject unfamiliar IPs) can hang well past the internal
     // greetingTimeout/socketTimeout, since those only apply once a TCP
     // connection is already open. This outer race guarantees the request
-    // always gets a response either way. 60s (up from 20s) to leave room
-    // for AI analysis of each newly-captured email, which runs
-    // sequentially within the same request.
+    // always gets a response within ~20s either way, which also makes a
+    // "genuinely stuck" connection distinguishable from a fast failure.
+    // (AI analysis of captured emails runs on-demand via the "Analyze"
+    // button/endpoint, not during polling, so it never adds to this.)
     const result = await Promise.race([
       pollInbox(),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error(
-          "Timed out after 60s. If this started after enabling AI analysis, a burst of new emails in one " +
-          "poll can add up — consider polling more frequently so fewer accumulate per run. Otherwise this " +
-          "points to a network-level block (e.g. a firewall silently dropping the connection) rather than a " +
-          "wrong password or setting — try connecting with the same host/port from a regular email client to confirm."
-        )), 60000)
+          "Timed out after 20s waiting for the mail server — this points to a network-level block " +
+          "(e.g. a firewall silently dropping the connection) rather than a wrong password or setting. " +
+          "Try connecting with the same host/port from a regular email client to confirm, or ask your host " +
+          "whether they block connections from cloud-hosting IP ranges."
+        )), 20000)
       ),
     ]);
     res.json({ ok: true, ...result });
