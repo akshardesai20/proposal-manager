@@ -1,0 +1,25 @@
+# Frontend is no longer deployed here — it now lives on GitHub Pages
+# (see .github/workflows/deploy-pages.yml). This blueprint only manages
+# the database and API.
+databases:
+  - name: proposalflow-demo-db
+    plan: free
+
+services:
+  - type: web
+    name: proposalflow-demo-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: proposalflow-demo-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      # Set these manually in the Render dashboard (Environment tab) if you
+      # want the admin account auto-seeded on boot — see README.
+      # ADMIN_EMAIL, ADMIN_NAME, ADMIN_PASSWORD (optional)

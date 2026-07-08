@@ -1,0 +1,24 @@
+{
+  "name": "proposalflow-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "migrate": "node scripts/migrate.js",
+    "seed:admin": "node scripts/seedAdmin.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0",
+    "express": "^4.19.2",
+    "imapflow": "^1.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "mailparser": "^3.9.12",
+    "pdfkit": "^0.15.0",
+    "pg": "^8.11.5"
+  }
+}
