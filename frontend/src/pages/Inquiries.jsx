@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api.js";
 import CustomerPicker from "../components/CustomerPicker.jsx";
-import { INQUIRY_TYPES, SEGMENTS } from "../constants.js";
+import { INQUIRY_TYPES, SEGMENTS, segmentMeta } from "../constants.js";
 
 const fullDate = (iso) => (iso ? new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");
 
@@ -205,11 +205,23 @@ export default function Inquiries() {
                       {inq.ai_summary ? (
                         <div style={{ marginTop: 6 }}>
                           <div style={{ fontSize: 12.5, color: "var(--text-dim)" }}>{inq.ai_summary}</div>
-                          {inq.ai_industry_type && (
-                            <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 3 }}>
-                              Industry (AI guess): {inq.ai_industry_type}
-                            </div>
-                          )}
+                          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 3 }}>
+                            {inq.ai_industry_type && (
+                              <div style={{ fontSize: 11, color: "var(--text-faint)" }}>
+                                Industry (AI guess): {inq.ai_industry_type}
+                              </div>
+                            )}
+                            {inq.ai_suggested_segment && (
+                              <div style={{ fontSize: 11, color: "var(--text-faint)" }}>
+                                Suggested segment: <b>{segmentMeta(inq.ai_suggested_segment)?.label || inq.ai_suggested_segment}</b>
+                              </div>
+                            )}
+                            {inq.ai_suggested_customer_name && !inq.matched_customer_name && (
+                              <div style={{ fontSize: 11, color: "var(--text-faint)" }}>
+                                Suggested customer: <b>{inq.ai_suggested_customer_name}</b>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ) : inq.ai_error ? (
                         <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 6, fontStyle: "italic" }}>
