@@ -27,6 +27,7 @@ Respond with ONLY a single JSON object, no other text, no markdown code fences. 
   "industry_type": "a short descriptive guess at the sender's industry, e.g. 'Pharmaceutical manufacturing', 'Water & wastewater treatment', 'Textile processing' — or null if genuinely unclear",
   "suggested_segment": "one of: ww, industries, instrument_service — your best guess at which business segment this belongs to (ww = water/wastewater treatment, industries = general industrial/manufacturing, instrument_service = calibration/service/AMC work rather than new equipment) — or null if unclear",
   "suggested_customer_name": "the sender's company name as best you can extract it from the email signature or body — or null if not stated",
+  "suggested_customer_phone": "a phone or mobile number from the email signature/body, digits and + only (e.g. '+91 98765 43210') — or null if none is stated",
   "email_type": "one of: new_inquiry, follow_up, negotiation, order, other — new_inquiry = a fresh requirement being raised for the first time; follow_up = checking status on something already discussed; negotiation = discussing price/terms/quantities on an existing offer; order = confirming/placing an order or PO; other = anything else (spam, unrelated correspondence, etc.)"
 }
 
@@ -95,6 +96,7 @@ export async function analyzeInquiry({ fromName, fromEmail, subject, bodyText })
       industry_type: parsed.industry_type || null,
       suggested_segment: segment,
       suggested_customer_name: parsed.suggested_customer_name || null,
+      suggested_customer_phone: parsed.suggested_customer_phone || null,
       email_type: emailType,
       analyzed_at: new Date(),
       error: null,

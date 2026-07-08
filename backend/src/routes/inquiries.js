@@ -14,9 +14,10 @@ router.get("/", async (req, res) => {
   const where = status === "all" ? "" : `WHERE i.status = $1`;
   const params = status === "all" ? [] : [status];
   const { rows } = await query(
-    `SELECT i.*, cu.name AS matched_customer_name
+    `SELECT i.*, cu.name AS matched_customer_name, aicu.name AS ai_matched_customer_name
      FROM inbound_inquiries i
      LEFT JOIN customers cu ON cu.id = i.matched_customer_id
+     LEFT JOIN customers aicu ON aicu.id = i.ai_matched_customer_id
      ${where}
      ORDER BY i.received_at DESC`,
     params
@@ -82,15 +83,39 @@ router.post("/:id/analyze", async (req, res) => {
     subject: inquiry.subject, bodyText: inquiry.body_text,
   });
 
+  // Fuzzy customer match by NAME, separate from matched_customer_id
+  // (which is an exact match on the sender's email address). Covers the
+  // common case of someone emailing from a personal address whose
+  // company is already in the system under a different contact. Strips
+  // punctuation and common legal-entity suffixes (Pvt/Private/Ltd/
+  // Limited/etc.) before comparing, so "Nish Techno Projects Pvt Ltd."
+  // correctly matches an existing "Nish Techno Projects Private Limited"
+  // — plain substring matching alone misses this since neither string
+  // literally contains the other. Skipped entirely if there's already an
+  // exact email match — no need to guess.
+  let aiMatchedCustomerId = null;
+  if (!inquiry.matched_customer_id && ai.suggested_customer_name) {
+    const NORMALIZE = `regexp_replace(UPPER($1), '[^A-Z0-9]|PVT|PRIVATE|LIMITED|LTD|LLP|INC|CORP', '', 'g')`;
+    const fuzzy = await query(
+      `SELECT id FROM customers
+       WHERE regexp_replace(UPPER(name), '[^A-Z0-9]|PVT|PRIVATE|LIMITED|LTD|LLP|INC|CORP', '', 'g') LIKE '%' || ${NORMALIZE} || '%'
+          OR ${NORMALIZE} LIKE '%' || regexp_replace(UPPER(name), '[^A-Z0-9]|PVT|PRIVATE|LIMITED|LTD|LLP|INC|CORP', '', 'g') || '%'
+       ORDER BY LENGTH(name) ASC LIMIT 1`,
+      [ai.suggested_customer_name]
+    );
+    aiMatchedCustomerId = fuzzy.rows[0]?.id || null;
+  }
+
   const { rows } = await query(
     `UPDATE inbound_inquiries SET
        ai_summary = $1, ai_industry_type = $2, ai_suggested_segment = $3,
-       ai_suggested_customer_name = $4, ai_email_type = $5, ai_analyzed_at = $6, ai_error = $7
-     WHERE id = $8 RETURNING *`,
+       ai_suggested_customer_name = $4, ai_suggested_customer_phone = $5, ai_email_type = $6,
+       ai_analyzed_at = $7, ai_error = $8, ai_matched_customer_id = $9
+     WHERE id = $10 RETURNING *`,
     [
       ai.summary || null, ai.industry_type || null, ai.suggested_segment || null,
-      ai.suggested_customer_name || null, ai.email_type || null,
-      ai.error ? null : ai.analyzed_at, ai.error || null, req.params.id,
+      ai.suggested_customer_name || null, ai.suggested_customer_phone || null, ai.email_type || null,
+      ai.error ? null : ai.analyzed_at, ai.error || null, aiMatchedCustomerId, req.params.id,
     ]
   );
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api.js";
 import CustomerForm from "./CustomerForm.jsx";
 
-export default function CustomerPicker({ value, onChange }) {
+export default function CustomerPicker({ value, onChange, initialNewCustomer }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
@@ -45,7 +45,12 @@ export default function CustomerPicker({ value, onChange }) {
   if (showNewForm) {
     return (
       <CustomerForm
-        note="Adding to the customer master list — this record will be available to pick for any future case."
+        initial={initialNewCustomer}
+        note={
+          initialNewCustomer
+            ? "Pre-filled from the inbound email — check the details before saving."
+            : "Adding to the customer master list — this record will be available to pick for any future case."
+        }
         submitLabel="Save customer"
         onSubmit={handleCreate}
         onCancel={() => setShowNewForm(false)}

@@ -106,6 +106,9 @@ export const api = {
   searchCustomers: (q) =>
     fetch(`${BASE}/customers?q=${encodeURIComponent(q || "")}`, { headers: authHeaders() }).then(handle),
 
+  getCustomer: (id) =>
+    fetch(`${BASE}/customers/${id}`, { headers: authHeaders() }).then(handle),
+
   createCustomer: (payload) =>
     fetch(`${BASE}/customers`, {
       method: "POST",

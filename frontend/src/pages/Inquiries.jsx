@@ -15,14 +15,39 @@ const EMAIL_TYPE_META = {
 };
 
 function ConvertForm({ inquiry, onDone, onCancel }) {
-  const [customer, setCustomer] = useState(
-    inquiry.matched_customer_id ? { id: inquiry.matched_customer_id, name: inquiry.matched_customer_name } : null
-  );
+  const [customer, setCustomer] = useState(null);
+  const [loadingCustomer, setLoadingCustomer] = useState(!!inquiry.matched_customer_id);
   const [requirement, setRequirement] = useState(inquiry.ai_summary || inquiry.body_text || "");
   const [segment, setSegment] = useState(inquiry.ai_suggested_segment || "");
   const [inquiryType, setInquiryType] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [applyingFuzzyMatch, setApplyingFuzzyMatch] = useState(false);
+
+  // An exact match (by sender email) is fetched in full — the picker
+  // shows placeholder text like "No further details on file" if only an
+  // {id, name} pair is passed in, so this loads the real record (code,
+  // GST, address, contact person) to actually display it.
+  useEffect(() => {
+    if (inquiry.matched_customer_id) {
+      api.getCustomer(inquiry.matched_customer_id)
+        .then(setCustomer)
+        .catch(() => setCustomer({ id: inquiry.matched_customer_id, name: inquiry.matched_customer_name }))
+        .finally(() => setLoadingCustomer(false));
+    }
+  }, [inquiry.matched_customer_id]);
+
+  async function useFuzzyMatch() {
+    setApplyingFuzzyMatch(true);
+    try {
+      const full = await api.getCustomer(inquiry.ai_matched_customer_id);
+      setCustomer(full);
+    } catch {
+      setCustomer({ id: inquiry.ai_matched_customer_id, name: inquiry.ai_matched_customer_name });
+    } finally {
+      setApplyingFuzzyMatch(false);
+    }
+  }
 
   async function submit(e) {
     e.preventDefault();
@@ -45,19 +70,53 @@ function ConvertForm({ inquiry, onDone, onCancel }) {
     }
   }
 
+  const showFuzzySuggestion = !inquiry.matched_customer_id && inquiry.ai_matched_customer_id && !customer;
+  const isNewCustomer = !inquiry.matched_customer_id && !inquiry.ai_matched_customer_id;
+
   return (
     <form onSubmit={submit} className="card" style={{ padding: 18, marginTop: 10 }}>
       <div style={{ marginBottom: 14 }}>
         <label className="fl">Customer</label>
-        <CustomerPicker value={customer} onChange={setCustomer} />
-        {inquiry.matched_customer_id && !customer && (
+        {loadingCustomer ? (
+          <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>Loading matched customer…</div>
+        ) : (
+          <CustomerPicker
+            value={customer}
+            onChange={setCustomer}
+            initialNewCustomer={
+              isNewCustomer
+                ? {
+                    name: inquiry.ai_suggested_customer_name || "",
+                    email: inquiry.from_email || "",
+                    phone: inquiry.ai_suggested_customer_phone || "",
+                  }
+                : undefined
+            }
+          />
+        )}
+        {inquiry.matched_customer_id && !customer && !loadingCustomer && (
           <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 4 }}>
             Matched by sender email to an existing customer — cleared because you changed it.
           </div>
         )}
-        {!inquiry.matched_customer_id && inquiry.ai_suggested_customer_name && !customer && (
+        {showFuzzySuggestion && (
+          <div style={{
+            fontSize: 11.5, color: "var(--text-dim)", marginTop: 6, padding: "8px 10px",
+            background: "var(--teal-ink)", border: "1px solid var(--teal-border)", borderRadius: 8,
+            display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
+          }}>
+            <span>
+              AI thinks this might already be <b>{inquiry.ai_matched_customer_name}</b> on file
+              (extracted name: "{inquiry.ai_suggested_customer_name}") — check before assuming it's new.
+            </span>
+            <button type="button" className="btn-ghost" onClick={useFuzzyMatch} disabled={applyingFuzzyMatch} style={{ whiteSpace: "nowrap", padding: "4px 10px", fontSize: 11 }}>
+              {applyingFuzzyMatch ? "Loading…" : "Use this customer"}
+            </button>
+          </div>
+        )}
+        {isNewCustomer && inquiry.ai_suggested_customer_name && !customer && (
           <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 4 }}>
-            AI extracted "<b>{inquiry.ai_suggested_customer_name}</b>" from the email — no exact match on file, search or add them above.
+            No match found on file — "+ New customer" above is pre-filled from the email (name, email, phone). Review before saving.
           </div>
         )}
       </div>
@@ -219,6 +278,9 @@ export default function Inquiries() {
                             {inq.ai_suggested_customer_name && !inq.matched_customer_name && (
                               <div style={{ fontSize: 11, color: "var(--text-faint)" }}>
                                 Suggested customer: <b>{inq.ai_suggested_customer_name}</b>
+                                {inq.ai_matched_customer_name && (
+                                  <span style={{ color: "var(--teal-deep)" }}> — likely existing: {inq.ai_matched_customer_name}</span>
+                                )}
                               </div>
                             )}
                           </div>
