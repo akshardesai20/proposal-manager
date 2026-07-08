@@ -17,20 +17,39 @@ router.get("/", async (req, res) => {
   res.json(rows);
 });
 
+// Turns a Postgres unique_violation into a clear, field-specific message
+// instead of a raw constraint name — e.g. "customers_code_key" becomes
+// "A customer with this code already exists."
+function friendlyDbError(err) {
+  if (err.code === "23505") {
+    if (err.constraint?.includes("code")) return "A customer with this code already exists — use a different code, or search for the existing one instead.";
+    if (err.constraint?.includes("gst")) return "A customer with this GST number already exists — search for the existing one instead.";
+    return "A customer with these details already exists.";
+  }
+  return null;
+}
+
 // POST /api/customers - adds to the master list, independent of any case
 router.post("/", async (req, res) => {
   const { name, code, contact_person, email, phone, address, gst_number } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: "Customer name is required" });
 
-  const { rows } = await query(
-    `INSERT INTO customers (name, code, contact_person, email, phone, address, gst_number)
-     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-    [
-      name.trim(), code?.trim() || null, contact_person?.trim() || null,
-      email?.trim() || null, phone?.trim() || null, address?.trim() || null, gst_number?.trim() || null,
-    ]
-  );
-  res.status(201).json(rows[0]);
+  try {
+    const { rows } = await query(
+      `INSERT INTO customers (name, code, contact_person, email, phone, address, gst_number)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [
+        name.trim(), code?.trim() || null, contact_person?.trim() || null,
+        email?.trim() || null, phone?.trim() || null, address?.trim() || null, gst_number?.trim() || null,
+      ]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    const friendly = friendlyDbError(err);
+    if (friendly) return res.status(409).json({ error: friendly });
+    console.error("[customers:create]", err);
+    res.status(500).json({ error: "Failed to save customer" });
+  }
 });
 
 // PATCH /api/customers/:id - edit an existing master record
@@ -52,9 +71,16 @@ router.patch("/:id", async (req, res) => {
   }
   vals.push(req.params.id);
 
-  const { rows } = await query(`UPDATE customers SET ${sets.join(", ")} WHERE id = $${i} RETURNING *`, vals);
-  if (!rows[0]) return res.status(404).json({ error: "Customer not found" });
-  res.json(rows[0]);
+  try {
+    const { rows } = await query(`UPDATE customers SET ${sets.join(", ")} WHERE id = $${i} RETURNING *`, vals);
+    if (!rows[0]) return res.status(404).json({ error: "Customer not found" });
+    res.json(rows[0]);
+  } catch (err) {
+    const friendly = friendlyDbError(err);
+    if (friendly) return res.status(409).json({ error: friendly });
+    console.error("[customers:update]", err);
+    res.status(500).json({ error: "Failed to save customer" });
+  }
 });
 
 router.get("/:id", async (req, res) => {
