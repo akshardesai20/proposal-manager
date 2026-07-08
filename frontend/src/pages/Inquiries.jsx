@@ -6,12 +6,20 @@ import { INQUIRY_TYPES, SEGMENTS } from "../constants.js";
 
 const fullDate = (iso) => (iso ? new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");
 
+const EMAIL_TYPE_META = {
+  new_inquiry: { label: "New Inquiry", color: "#1bb8b0" },
+  follow_up: { label: "Follow-up", color: "#5d7188" },
+  negotiation: { label: "Negotiation", color: "#f2a900" },
+  order: { label: "Order", color: "#3fb950" },
+  other: { label: "Other", color: "#94a3b8" },
+};
+
 function ConvertForm({ inquiry, onDone, onCancel }) {
   const [customer, setCustomer] = useState(
     inquiry.matched_customer_id ? { id: inquiry.matched_customer_id, name: inquiry.matched_customer_name } : null
   );
-  const [requirement, setRequirement] = useState(inquiry.body_text || "");
-  const [segment, setSegment] = useState("");
+  const [requirement, setRequirement] = useState(inquiry.ai_summary || inquiry.body_text || "");
+  const [segment, setSegment] = useState(inquiry.ai_suggested_segment || "");
   const [inquiryType, setInquiryType] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -47,10 +55,15 @@ function ConvertForm({ inquiry, onDone, onCancel }) {
             Matched by sender email to an existing customer — cleared because you changed it.
           </div>
         )}
+        {!inquiry.matched_customer_id && inquiry.ai_suggested_customer_name && !customer && (
+          <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 4 }}>
+            AI extracted "<b>{inquiry.ai_suggested_customer_name}</b>" from the email — no exact match on file, search or add them above.
+          </div>
+        )}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
         <div>
-          <label className="fl">Segment</label>
+          <label className="fl">Segment{inquiry.ai_suggested_segment && segment === inquiry.ai_suggested_segment ? " (AI-suggested)" : ""}</label>
           <select value={segment} onChange={(e) => setSegment(e.target.value)} required>
             <option value="">Select segment…</option>
             {SEGMENTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -65,7 +78,7 @@ function ConvertForm({ inquiry, onDone, onCancel }) {
         </div>
       </div>
       <div style={{ marginBottom: 14 }}>
-        <label className="fl">Requirement</label>
+        <label className="fl">Requirement{inquiry.ai_summary ? " (AI summary — edit as needed)" : ""}</label>
         <textarea rows={4} value={requirement} onChange={(e) => setRequirement(e.target.value)} placeholder="Pulled from the email body — edit as needed" />
       </div>
       {error && <div style={{ color: "var(--red)", fontSize: 12.5, marginBottom: 12 }}>{error}</div>}
@@ -111,6 +124,21 @@ export default function Inquiries() {
     }
   }
 
+  const [analyzingId, setAnalyzingId] = useState(null);
+
+  async function handleAnalyze(id) {
+    setActionError("");
+    setAnalyzingId(id);
+    try {
+      const updated = await api.analyzeInquiry(id);
+      setInquiries((prev) => prev.map((i) => (i.id === id ? updated : i)));
+    } catch (err) {
+      setActionError(`Analysis failed for that email: ${err.message}`);
+    } finally {
+      setAnalyzingId(null);
+    }
+  }
+
   function handleConverted(inquiryId, createdCase) {
     setInquiries((prev) => prev.filter((i) => i.id !== inquiryId));
     setConvertingId(null);
@@ -153,10 +181,18 @@ export default function Inquiries() {
                 <div key={inq.id} style={{ padding: "16px 18px", borderBottom: "1px solid var(--line-soft)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 600 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         {inq.from_name || inq.from_email || "Unknown sender"}
+                        {inq.ai_email_type && EMAIL_TYPE_META[inq.ai_email_type] && (
+                          <span style={{
+                            fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 20,
+                            color: "#fff", background: EMAIL_TYPE_META[inq.ai_email_type].color,
+                          }}>
+                            {EMAIL_TYPE_META[inq.ai_email_type].label}
+                          </span>
+                        )}
                         {inq.matched_customer_name && (
-                          <span className="ref-stamp" style={{ marginLeft: 8, fontWeight: 500 }}>
+                          <span className="ref-stamp" style={{ fontWeight: 500 }}>
                             matched: {inq.matched_customer_name}
                           </span>
                         )}
@@ -165,19 +201,45 @@ export default function Inquiries() {
                         {inq.from_email} · {fullDate(inq.received_at)}
                       </div>
                       {inq.subject && <div style={{ fontSize: 13, marginTop: 6, fontWeight: 500 }}>{inq.subject}</div>}
-                      <div style={{ fontSize: 12.5, color: "var(--text-dim)", marginTop: 6, whiteSpace: "pre-wrap" }}>
+
+                      {inq.ai_summary ? (
+                        <div style={{ marginTop: 6 }}>
+                          <div style={{ fontSize: 12.5, color: "var(--text-dim)" }}>{inq.ai_summary}</div>
+                          {inq.ai_industry_type && (
+                            <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 3 }}>
+                              Industry (AI guess): {inq.ai_industry_type}
+                            </div>
+                          )}
+                        </div>
+                      ) : inq.ai_error ? (
+                        <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 6, fontStyle: "italic" }}>
+                          AI analysis unavailable: {inq.ai_error}
+                        </div>
+                      ) : null}
+
+                      <div style={{ fontSize: 12.5, color: "var(--text-dim)", marginTop: inq.ai_summary ? 8 : 6, whiteSpace: "pre-wrap" }}>
                         {expanded ? inq.body_text : snippet}
                         {!expanded && (inq.body_text || "").length > 220 && "…"}
                       </div>
-                      {(inq.body_text || "").length > 220 && (
+                      <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 6 }}>
+                        {(inq.body_text || "").length > 220 && (
+                          <button
+                            className="btn-ghost"
+                            onClick={() => setExpandedId(expanded ? null : inq.id)}
+                            style={{ padding: "3px 8px", fontSize: 11 }}
+                          >
+                            {expanded ? "Show less" : "Show full email"}
+                          </button>
+                        )}
                         <button
                           className="btn-ghost"
-                          onClick={() => setExpandedId(expanded ? null : inq.id)}
-                          style={{ padding: "3px 8px", fontSize: 11, marginTop: 6 }}
+                          onClick={() => handleAnalyze(inq.id)}
+                          disabled={analyzingId === inq.id}
+                          style={{ padding: "3px 8px", fontSize: 11 }}
                         >
-                          {expanded ? "Show less" : "Show full email"}
+                          {analyzingId === inq.id ? "Analyzing…" : inq.ai_analyzed_at ? "Re-analyze" : "Analyze with AI"}
                         </button>
-                      )}
+                      </div>
                     </div>
                     <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                       <button

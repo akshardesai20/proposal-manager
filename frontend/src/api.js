@@ -230,6 +230,9 @@ export const api = {
   dismissInquiry: (id) =>
     fetch(`${BASE}/inquiries/${id}/dismiss`, { method: "POST", headers: authHeaders() }).then(handle),
 
+  analyzeInquiry: (id) =>
+    fetch(`${BASE}/inquiries/${id}/analyze`, { method: "POST", headers: authHeaders() }).then(handle),
+
   listUsers: () => fetch(`${BASE}/users`, { headers: authHeaders() }).then(handle),
 
   createUser: (payload) =>

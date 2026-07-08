@@ -2,6 +2,7 @@ import { Router } from "express";
 import { query, pool } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { createCaseWithinTransaction } from "../cases/createCaseWithinTransaction.js";
+import { analyzeInquiry } from "../ai/analyzeInquiry.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -67,6 +68,34 @@ router.post("/:id/convert", async (req, res) => {
   } finally {
     client.release();
   }
+});
+
+// POST /api/inquiries/:id/analyze — manually (re-)run AI analysis on one
+// inquiry. Useful if it wasn't configured yet at poll time, failed, or you
+// just want a fresh pass. Overwrites any previous AI fields.
+router.post("/:id/analyze", async (req, res) => {
+  const inquiry = (await query(`SELECT * FROM inbound_inquiries WHERE id = $1`, [req.params.id])).rows[0];
+  if (!inquiry) return res.status(404).json({ error: "Inquiry not found" });
+
+  const ai = await analyzeInquiry({
+    fromName: inquiry.from_name, fromEmail: inquiry.from_email,
+    subject: inquiry.subject, bodyText: inquiry.body_text,
+  });
+
+  const { rows } = await query(
+    `UPDATE inbound_inquiries SET
+       ai_summary = $1, ai_industry_type = $2, ai_suggested_segment = $3,
+       ai_suggested_customer_name = $4, ai_email_type = $5, ai_analyzed_at = $6, ai_error = $7
+     WHERE id = $8 RETURNING *`,
+    [
+      ai.summary || null, ai.industry_type || null, ai.suggested_segment || null,
+      ai.suggested_customer_name || null, ai.email_type || null,
+      ai.error ? null : ai.analyzed_at, ai.error || null, req.params.id,
+    ]
+  );
+
+  if (ai.error) return res.status(502).json({ error: ai.error, inquiry: rows[0] });
+  res.json(rows[0]);
 });
 
 // POST /api/inquiries/:id/dismiss — not every inbound email is a real

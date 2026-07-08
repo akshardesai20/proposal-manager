@@ -28,6 +28,7 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { query } from "../db.js";
+import { analyzeInquiry } from "../ai/analyzeInquiry.js";
 
 export async function pollInbox() {
   const { INBOX_IMAP_HOST, INBOX_IMAP_PORT, INBOX_IMAP_USER, INBOX_IMAP_PASSWORD, INBOX_IMAP_FOLDER, INBOX_IMAP_SECURE } = process.env;
@@ -97,7 +98,34 @@ export async function pollInbox() {
             [messageUid, fromAddr, fromName, parsed.subject || null, bodyText, parsed.date || new Date(), matchedCustomerId]
           );
 
-          if (inserted.rows.length) created++; else skipped++;
+          if (inserted.rows.length) {
+            created++;
+            // Enrichment, not a requirement — a failure here (bad/missing
+            // API key, rate limit, model hiccup) must never break email
+            // capture itself. The inquiry is already safely in the review
+            // queue at this point regardless of what happens next.
+            const inquiryId = inserted.rows[0].id;
+            try {
+              const ai = await analyzeInquiry({ fromName, fromEmail: fromAddr, subject: parsed.subject, bodyText });
+              await query(
+                `UPDATE inbound_inquiries SET
+                   ai_summary = $1, ai_industry_type = $2, ai_suggested_segment = $3,
+                   ai_suggested_customer_name = $4, ai_email_type = $5, ai_analyzed_at = $6, ai_error = $7
+                 WHERE id = $8`,
+                [
+                  ai.summary || null, ai.industry_type || null, ai.suggested_segment || null,
+                  ai.suggested_customer_name || null, ai.email_type || null,
+                  ai.error ? null : ai.analyzed_at, ai.error || null, inquiryId,
+                ]
+              );
+            } catch (aiErr) {
+              // Even the UPDATE failing shouldn't surface as a poll error —
+              // log it via the errors array but keep going.
+              errors.push({ uid, message: `AI analysis failed: ${aiErr.message}` });
+            }
+          } else {
+            skipped++;
+          }
 
           // Mark as seen either way, so a message that failed to insert
           // (e.g. a genuine duplicate) doesn't get re-fetched forever.
