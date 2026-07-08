@@ -10,6 +10,7 @@ export default function CustomerForm({ initial, onSubmit, onCancel, submitLabel,
   async function submit(e) {
     e.preventDefault();
     setError("");
+    if (!form.name.trim()) { setError("Customer name is required"); return; }
     setSaving(true);
     try {
       await onSubmit(form);
@@ -21,7 +22,7 @@ export default function CustomerForm({ initial, onSubmit, onCancel, submitLabel,
   }
 
   return (
-    <form onSubmit={submit} className="card" style={{ padding: 16 }}>
+    <form onSubmit={submit} noValidate className="card" style={{ padding: 16 }}>
       {note && <div style={{ fontSize: 12.5, color: "var(--text-faint)", marginBottom: 12 }}>{note}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
         <div>
@@ -42,7 +43,7 @@ export default function CustomerForm({ initial, onSubmit, onCancel, submitLabel,
         </div>
         <div>
           <label className="fl">Email</label>
-          <input type="email" value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          <input value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         </div>
         <div>
           <label className="fl">GST number</label>
