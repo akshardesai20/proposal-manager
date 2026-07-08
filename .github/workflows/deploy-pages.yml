@@ -37,8 +37,10 @@ jobs:
         working-directory: frontend
         env:
           GITHUB_PAGES: "true"
-          # Set this in: repo Settings -> Secrets and variables -> Actions -> Variables
+          # Set these in: repo Settings -> Secrets and variables -> Actions -> Variables
           VITE_API_BASE: ${{ vars.VITE_API_BASE }}
+          VITE_COMPANY_NAME: ${{ vars.VITE_COMPANY_NAME }}
+          VITE_PRODUCT_NAME: ${{ vars.VITE_PRODUCT_NAME }}
         run: npm run build
 
       - uses: actions/upload-pages-artifact@v3
