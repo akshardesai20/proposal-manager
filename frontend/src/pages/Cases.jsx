@@ -167,7 +167,7 @@ export default function Cases({ user }) {
   }
 
   async function submit(e) {
-    e.preventDefault();
+    e?.preventDefault();
     setError("");
     if (!selectedCustomer) { setError("Select or add a customer first"); return; }
     if (!segment) { setError("Select a segment (WW, Industries, or Instrument Service)"); return; }
@@ -243,7 +243,7 @@ export default function Cases({ user }) {
       </div>
 
       {showForm && (
-        <form onSubmit={submit} className="card" style={{ padding: 22, marginBottom: 22, maxWidth: 700 }}>
+        <div className="card" style={{ padding: 22, marginBottom: 22, maxWidth: 700 }}>
           <div style={{ marginBottom: 16 }}>
             <label className="fl">Customer</label>
             <CustomerPicker value={selectedCustomer} onChange={setSelectedCustomer} />
@@ -273,8 +273,8 @@ export default function Cases({ user }) {
             <textarea value={requirement} onChange={(e) => setRequirement(e.target.value)} rows={3} placeholder="What has the customer asked for?" />
           </div>
           {error && <div style={{ color: "var(--red)", fontSize: 12.5, marginBottom: 12 }}>{error}</div>}
-          <button type="submit" className="btn-primary">Create case</button>
-        </form>
+          <button type="button" onClick={submit} className="btn-primary">Create case</button>
+        </div>
       )}
 
       <div style={{ display: "flex", gap: 6, marginBottom: 14, borderBottom: "1px solid var(--line)" }}>

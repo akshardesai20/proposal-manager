@@ -50,7 +50,7 @@ function ConvertForm({ inquiry, onDone, onCancel }) {
   }
 
   async function submit(e) {
-    e.preventDefault();
+    e?.preventDefault();
     setError("");
     if (!customer) { setError("Select or add a customer first"); return; }
     if (!segment) { setError("Select a segment (WW, Industries, or Instrument Service)"); return; }
@@ -74,7 +74,7 @@ function ConvertForm({ inquiry, onDone, onCancel }) {
   const isNewCustomer = !inquiry.matched_customer_id && !inquiry.ai_matched_customer_id;
 
   return (
-    <form onSubmit={submit} className="card" style={{ padding: 18, marginTop: 10 }}>
+    <div className="card" style={{ padding: 18, marginTop: 10 }}>
       <div style={{ marginBottom: 14 }}>
         <label className="fl">Customer</label>
         {loadingCustomer ? (
@@ -142,12 +142,12 @@ function ConvertForm({ inquiry, onDone, onCancel }) {
       </div>
       {error && <div style={{ color: "var(--red)", fontSize: 12.5, marginBottom: 12 }}>{error}</div>}
       <div style={{ display: "flex", gap: 8 }}>
-        <button type="submit" className="btn-primary" disabled={saving}>
+        <button type="button" onClick={submit} className="btn-primary" disabled={saving}>
           {saving ? "Creating…" : "Create case"}
         </button>
         <button type="button" className="btn-ghost" onClick={onCancel}>Cancel</button>
       </div>
-    </form>
+    </div>
   );
 }
 
