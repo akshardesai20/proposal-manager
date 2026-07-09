@@ -6,6 +6,14 @@ import logo from "../assets/logo.png";
 
 const COMPANY_NAME = import.meta.env.VITE_COMPANY_NAME || "Your Company Name";
 
+const EMAIL_TYPE_META = {
+  new_inquiry: { label: "New Inquiry", color: "#1bb8b0" },
+  follow_up: { label: "Follow-up", color: "#5d7188" },
+  negotiation: { label: "Negotiation", color: "#f2a900" },
+  order: { label: "Order", color: "#3fb950" },
+  other: { label: "Other", color: "#94a3b8" },
+};
+
 const shortDate = (iso) => (iso ? new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" }) : null);
 const toDateInput = (iso) => (iso ? new Date(iso).toISOString().slice(0, 10) : "");
 // The site-wide `input { width: 100%; padding: 10px 11px; ... }` rule in
@@ -502,6 +510,19 @@ export default function CaseDetail({ user }) {
   const [addingFollowup, setAddingFollowup] = useState(false);
   const [expectedOrderDate, setExpectedOrderDate] = useState("");
   const [emails, setEmails] = useState([]);
+  const [analyzingEmailId, setAnalyzingEmailId] = useState(null);
+
+  async function handleAnalyzeCaseEmail(emailId) {
+    setAnalyzingEmailId(emailId);
+    try {
+      const updated = await api.analyzeCaseEmail(id, emailId);
+      setEmails((prev) => prev.map((e) => (e.id === emailId ? updated : e)));
+    } catch (err) {
+      alert(err.message || "Failed to analyze this email");
+    } finally {
+      setAnalyzingEmailId(null);
+    }
+  }
   const [myProfile, setMyProfile] = useState(null);
   useEffect(() => { api.getMyProfile().then(setMyProfile).catch(() => {}); }, []);
   const [composeFor, setComposeFor] = useState(null); // { offerId, offerRef } for an offer send, or "followup" for a general email, or null
@@ -1005,12 +1026,22 @@ export default function CaseDetail({ user }) {
           emails.map((em) => (
             <div key={em.id} style={{ padding: "10px 0", borderTop: "1px solid var(--line-soft)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-                <span style={{
-                  fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 20, color: "#fff",
-                  background: em.direction === "outbound" ? "#1bb8b0" : "#5d7188",
-                }}>
-                  {em.direction === "outbound" ? "Sent" : "Received"}
-                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{
+                    fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 20, color: "#fff",
+                    background: em.direction === "outbound" ? "#1bb8b0" : "#5d7188",
+                  }}>
+                    {em.direction === "outbound" ? "Sent" : "Received"}
+                  </span>
+                  {em.ai_email_type && EMAIL_TYPE_META[em.ai_email_type] && (
+                    <span style={{
+                      fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 20, color: "#fff",
+                      background: EMAIL_TYPE_META[em.ai_email_type].color,
+                    }}>
+                      {EMAIL_TYPE_META[em.ai_email_type].label}
+                    </span>
+                  )}
+                </div>
                 <span style={{ fontSize: 11, color: "var(--text-faint)", marginLeft: "auto" }}>
                   {new Date(em.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                 </span>
@@ -1021,6 +1052,42 @@ export default function CaseDetail({ user }) {
                 {em.created_by_name && ` · ${em.created_by_name}`}
               </div>
               <div style={{ fontSize: 12.5, color: "var(--text-dim)", marginTop: 6, whiteSpace: "pre-wrap" }}>{em.body}</div>
+
+              {em.ai_summary && (
+                <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 6, fontStyle: "italic" }}>
+                  AI summary: {em.ai_summary}
+                </div>
+              )}
+
+              {em.direction === "inbound" && !em.ai_analyzed_at && (
+                <button
+                  className="btn-ghost"
+                  onClick={() => handleAnalyzeCaseEmail(em.id)}
+                  disabled={analyzingEmailId === em.id}
+                  style={{ padding: "4px 10px", fontSize: 11, marginTop: 8 }}
+                >
+                  {analyzingEmailId === em.id ? "Analyzing…" : "Analyze with AI"}
+                </button>
+              )}
+
+              {em.ai_email_type === "order" && caseData.stage !== "won" && caseData.stage !== "lost" && (
+                <div style={{
+                  marginTop: 8, padding: "8px 10px", background: "var(--green-ink)",
+                  border: "1px solid var(--teal-border)", borderRadius: 8,
+                  display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
+                }}>
+                  <span style={{ fontSize: 12, color: "var(--green)" }}>
+                    This looks like an order confirmation.
+                  </span>
+                  <button
+                    className="btn-primary"
+                    onClick={() => toggleOutcome("won", true)}
+                    style={{ padding: "4px 12px", fontSize: 11.5, whiteSpace: "nowrap" }}
+                  >
+                    Mark case as Won
+                  </button>
+                </div>
+              )}
             </div>
           ))
         )}

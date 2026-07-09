@@ -5,6 +5,7 @@ import { sendMail } from "../mail/sendMail.js";
 import { offerPdfBuffer } from "../pdf/offerPdf.js";
 import { companyProfile } from "../config/companyProfile.js";
 import { buildSignature, textToHtml } from "../mail/emailSignature.js";
+import { analyzeInquiry } from "../ai/analyzeInquiry.js";
 
 // Mounted at /api/cases/:caseId/emails
 export const caseEmailsRouter = Router({ mergeParams: true });
@@ -105,4 +106,31 @@ caseEmailsRouter.post("/send", async (req, res) => {
     console.error("[case-emails:send]", err);
     res.status(502).json({ error: err.message || "Failed to send email" });
   }
+});
+
+// POST /api/cases/:caseId/emails/:emailId/analyze — classifies an inbound
+// email that got auto-matched to this case (see pollInbox.js): is it a
+// follow-up, a negotiation, an order confirmation, or something else.
+// On-demand only, same as inbound_inquiries — never automatic on poll.
+// Only makes sense for inbound emails; outbound ones (things we sent)
+// aren't classified.
+caseEmailsRouter.post("/:emailId/analyze", async (req, res) => {
+  const email = (await query(
+    `SELECT * FROM case_emails WHERE id = $1 AND case_id = $2`, [req.params.emailId, req.params.caseId]
+  )).rows[0];
+  if (!email) return res.status(404).json({ error: "Email not found on this case" });
+  if (email.direction !== "inbound") return res.status(400).json({ error: "Only inbound emails can be analyzed" });
+
+  const ai = await analyzeInquiry({
+    fromName: null, fromEmail: email.from_email, subject: email.subject, bodyText: email.body,
+  });
+
+  const { rows } = await query(
+    `UPDATE case_emails SET ai_summary = $1, ai_email_type = $2, ai_analyzed_at = $3, ai_error = $4
+     WHERE id = $5 RETURNING *`,
+    [ai.summary || null, ai.email_type || null, ai.error ? null : ai.analyzed_at, ai.error || null, req.params.emailId]
+  );
+
+  if (ai.error) return res.status(502).json({ error: ai.error, email: rows[0] });
+  res.json(rows[0]);
 });

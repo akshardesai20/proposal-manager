@@ -1,12 +1,21 @@
-// Polls the existing business mailbox over IMAP for new (unseen) messages
-// and drops each one into the inbound_inquiries review queue. Nothing is
-// auto-converted into a case — see migration 013 for why.
+// Polls the existing business mailbox over IMAP for new (unseen) messages.
+// Each one is checked against cases already being tracked:
 //
-// AI analysis (see ../ai/analyzeInquiry.js) does NOT run automatically
-// here — it's deliberately on-demand only, triggered by the "Analyze with
-// AI" button in the Inbox UI (POST /api/inquiries/:id/analyze). This keeps
-// polling fast and avoids spending API calls on every email regardless of
-// whether anyone ever looks at it.
+//   1. Header-based threading (reliable): if the email's In-Reply-To or
+//      References header matches the message_id of something we sent
+//      from a case (case_emails), or the message_uid of the original
+//      inquiry that became a case (inbound_inquiries.created_case_id),
+//      it's attached directly to that case's Emails thread.
+//   2. Sender fallback (safe, not guessed): if no header match, but the
+//      sender's address belongs to an existing customer who has exactly
+//      one open (not won/lost) case, attach it there too — one case, one
+//      customer, no ambiguity. If a customer has multiple open cases,
+//      this is deliberately skipped rather than guessing wrong.
+//   3. Otherwise, same as before: lands in the inbound_inquiries review
+//      queue — see migration 013 for why nothing is auto-converted.
+//
+// AI classification of a matched email (negotiation vs order vs other) is
+// NOT run here either — on-demand only, via the case's Emails section.
 //
 // Configuration (Render env vars):
 //   INBOX_IMAP_HOST      e.g. mail.yourcompany.com — ask your host/cPanel for
@@ -34,6 +43,37 @@
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { query } from "../db.js";
+
+// Tries to find an existing case this inbound email belongs to. Returns a
+// case id, or null if nothing matched (caller falls back to the review
+// queue in that case).
+export async function matchToExistingCase({ threadIds, fromAddr }) {
+  if (threadIds.length) {
+    const bySentEmail = await query(
+      `SELECT case_id FROM case_emails WHERE message_id = ANY($1::text[]) LIMIT 1`,
+      [threadIds]
+    );
+    if (bySentEmail.rows[0]) return bySentEmail.rows[0].case_id;
+
+    const byOriginalInquiry = await query(
+      `SELECT created_case_id AS case_id FROM inbound_inquiries
+       WHERE message_uid = ANY($1::text[]) AND created_case_id IS NOT NULL LIMIT 1`,
+      [threadIds]
+    );
+    if (byOriginalInquiry.rows[0]) return byOriginalInquiry.rows[0].case_id;
+  }
+
+  if (fromAddr) {
+    const openCases = await query(
+      `SELECT c.id FROM cases c JOIN customers cu ON cu.id = c.customer_id
+       WHERE LOWER(cu.email) = LOWER($1) AND c.stage NOT IN ('won', 'lost')`,
+      [fromAddr]
+    );
+    if (openCases.rows.length === 1) return openCases.rows[0].id;
+  }
+
+  return null;
+}
 
 export async function pollInbox() {
   const { INBOX_IMAP_HOST, INBOX_IMAP_PORT, INBOX_IMAP_USER, INBOX_IMAP_PASSWORD, INBOX_IMAP_FOLDER, INBOX_IMAP_SECURE } = process.env;
@@ -88,6 +128,22 @@ export async function pollInbox() {
           const fromAddr = parsed.from?.value?.[0]?.address || null;
           const fromName = parsed.from?.value?.[0]?.name || null;
           const bodyText = (parsed.text || "").trim().slice(0, 20000);
+          const threadIds = [parsed.inReplyTo, ...(parsed.references || [])].filter(Boolean);
+
+          const matchedCaseId = await matchToExistingCase({ threadIds, fromAddr });
+
+          if (matchedCaseId) {
+            const inserted = await query(
+              `INSERT INTO case_emails (case_id, direction, to_email, from_email, subject, body, message_id, in_reply_to)
+               VALUES ($1,'inbound',$2,$3,$4,$5,$6,$7)
+               ON CONFLICT (message_id) DO NOTHING
+               RETURNING id`,
+              [matchedCaseId, INBOX_IMAP_USER, fromAddr, parsed.subject || null, bodyText, messageUid, parsed.inReplyTo || null]
+            );
+            if (inserted.rows.length) created++; else skipped++;
+            await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
+            continue;
+          }
 
           let matchedCustomerId = null;
           if (fromAddr) {
