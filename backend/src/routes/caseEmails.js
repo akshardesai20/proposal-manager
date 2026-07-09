@@ -77,11 +77,19 @@ caseEmailsRouter.post("/send", async (req, res) => {
   }
 
   try {
-    const { messageId } = await sendMail({
-      to: to.trim(), subject: finalSubject, text: finalText, html: finalHtml,
-      attachments: attachments.length ? attachments : undefined,
-      inReplyTo: in_reply_to || undefined,
-    });
+    // Defense in depth on top of sendMail.js's own SMTP-level timeouts —
+    // guarantees this request always resolves within ~25s even if
+    // something outside the SMTP handshake itself hangs (e.g. DNS).
+    const { messageId } = await Promise.race([
+      sendMail({
+        to: to.trim(), subject: finalSubject, text: finalText, html: finalHtml,
+        attachments: attachments.length ? attachments : undefined,
+        inReplyTo: in_reply_to || undefined,
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Timed out after 25s trying to send — the mail server may be unreachable or slow to respond. Try again in a moment.")), 25000)
+      ),
+    ]);
 
     const { rows } = await query(
       `INSERT INTO case_emails (case_id, direction, to_email, from_email, subject, body, message_id, in_reply_to, offer_id, created_by)

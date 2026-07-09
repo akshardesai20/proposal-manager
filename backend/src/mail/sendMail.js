@@ -31,6 +31,13 @@ export async function sendMail({ to, subject, text, html, attachments, inReplyTo
   const { host, port, user, pass } = getConfig();
   const transporter = nodemailer.createTransport({
     host, port, secure: port === 465, auth: { user, pass },
+    // Without these, a slow/unresponsive connection to the mail server
+    // can hang far longer than it should before failing — the exact same
+    // issue we hit (and fixed) on the IMAP polling side. These give a
+    // clear, fast failure instead of an indefinite hang.
+    connectionTimeout: 15000, // time to establish the TCP connection
+    greetingTimeout: 15000,   // time to receive the server's initial greeting
+    socketTimeout: 20000,     // time allowed for inactivity mid-conversation
   });
 
   const info = await transporter.sendMail({
