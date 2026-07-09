@@ -67,7 +67,9 @@ router.post("/", async (req, res) => {
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
   const caseRow = (await query(
-    `SELECT c.*, cu.name AS customer_name, cu.code AS customer_code, cu.email AS customer_email
+    `SELECT c.*, cu.name AS customer_name, cu.code AS customer_code, cu.email AS customer_email,
+       (SELECT subject FROM inbound_inquiries WHERE created_case_id = c.id ORDER BY received_at ASC LIMIT 1) AS origin_email_subject,
+       (SELECT message_uid FROM inbound_inquiries WHERE created_case_id = c.id ORDER BY received_at ASC LIMIT 1) AS origin_email_message_id
      FROM cases c JOIN customers cu ON cu.id = c.customer_id WHERE c.id = $1`,
     [id]
   )).rows[0];

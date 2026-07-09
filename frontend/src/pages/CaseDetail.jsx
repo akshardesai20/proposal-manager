@@ -523,9 +523,13 @@ export default function CaseDetail({ user }) {
   function openComposeForOffer(offer) {
     setComposeFor({ offerId: offer.id, offerRef: offer.ref });
     setComposeTo(caseData?.customer_email || "");
-    setComposeSubject(`Offer ${offer.ref} — ${caseData?.customer_name || ""}`);
+    // Match the subject of the email that originated this case, so this
+    // lands as part of the same conversation in the customer's inbox
+    // rather than a brand-new thread. Falls back to a generic subject if
+    // this case wasn't created from an inbound email.
+    setComposeSubject(caseData?.origin_email_subject || `Offer ${offer.ref} — ${caseData?.customer_name || ""}`);
     setComposeBody(
-      `Dear ${caseData?.customer_name || "Sir/Madam"},\n\nPlease find attached our offer ${offer.ref} for your requirement.\n\n` +
+      `Dear Sir,\n\nPlease find attached our offer ${offer.ref} for your requirement.\n\n` +
       `Please let us know if you have any questions.\n\nRegards,`
     );
     setComposeError("");
@@ -534,8 +538,8 @@ export default function CaseDetail({ user }) {
   function openComposeFollowup() {
     setComposeFor("followup");
     setComposeTo(caseData?.customer_email || "");
-    setComposeSubject(`Following up — ${caseData?.reference || `CASE-${String(caseData?.id).padStart(4, "0")}`}`);
-    setComposeBody(`Dear ${caseData?.customer_name || "Sir/Madam"},\n\nFollowing up on our earlier conversation regarding your requirement.\n\nRegards,`);
+    setComposeSubject(caseData?.origin_email_subject || `Following up — ${caseData?.reference || `CASE-${String(caseData?.id).padStart(4, "0")}`}`);
+    setComposeBody(`Dear Sir,\n\nFollowing up on our earlier conversation regarding your requirement.\n\nRegards,`);
     setComposeError("");
   }
 
@@ -554,6 +558,11 @@ export default function CaseDetail({ user }) {
       const payload = {
         to: composeTo.trim(), subject: composeSubject.trim(), body: composeBody,
         offer_id: composeFor && composeFor !== "followup" ? composeFor.offerId : null,
+        // Threads as a reply to the original inquiry email, if this case
+        // came from one — sets the actual In-Reply-To/References headers,
+        // which is what real email clients use to group a conversation
+        // (the matching subject line alone only helps cosmetically).
+        in_reply_to: caseData?.origin_email_message_id || null,
       };
       const sent = await api.sendCaseEmail(id, payload);
       setEmails((prev) => [...prev, sent]);
@@ -951,6 +960,9 @@ export default function CaseDetail({ user }) {
           </div>
           <div style={{ marginBottom: 12 }}>
             <label className="fl">Message{composeFor !== "followup" ? " (PDF will be attached automatically)" : ""}</label>
+            <div style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 6 }}>
+              Your name, designation, contact details, and company logo are added automatically as a signature after this.
+            </div>
             <textarea rows={6} value={composeBody} onChange={(e) => setComposeBody(e.target.value)} />
           </div>
           {composeError && <div style={{ color: "var(--red)", fontSize: 12.5, marginBottom: 12 }}>{composeError}</div>}
