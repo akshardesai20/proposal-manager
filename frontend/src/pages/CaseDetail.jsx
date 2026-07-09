@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "../api.js";
 import { CASE_PROGRESS_STAGES, STAGE_ORDER } from "../constants.js";
+import logo from "../assets/logo.png";
+
+const COMPANY_NAME = import.meta.env.VITE_COMPANY_NAME || "Your Company Name";
 
 const shortDate = (iso) => (iso ? new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" }) : null);
 const toDateInput = (iso) => (iso ? new Date(iso).toISOString().slice(0, 10) : "");
@@ -499,6 +502,8 @@ export default function CaseDetail({ user }) {
   const [addingFollowup, setAddingFollowup] = useState(false);
   const [expectedOrderDate, setExpectedOrderDate] = useState("");
   const [emails, setEmails] = useState([]);
+  const [myProfile, setMyProfile] = useState(null);
+  useEffect(() => { api.getMyProfile().then(setMyProfile).catch(() => {}); }, []);
   const [composeFor, setComposeFor] = useState(null); // { offerId, offerRef } for an offer send, or "followup" for a general email, or null
   const [composeTo, setComposeTo] = useState("");
   const [composeSubject, setComposeSubject] = useState("");
@@ -960,11 +965,23 @@ export default function CaseDetail({ user }) {
           </div>
           <div style={{ marginBottom: 12 }}>
             <label className="fl">Message{composeFor !== "followup" ? " (PDF will be attached automatically)" : ""}</label>
-            <div style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 6 }}>
-              Your name, designation, contact details, and company logo are added automatically as a signature after this.
-            </div>
             <textarea rows={6} value={composeBody} onChange={(e) => setComposeBody(e.target.value)} />
           </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11, letterSpacing: 0.4, textTransform: "uppercase", color: "var(--text-faint)", marginBottom: 6, fontWeight: 600 }}>
+              Signature (added automatically — not editable here)
+            </div>
+            <div style={{ border: "1px dashed var(--line)", borderRadius: 8, padding: "12px 14px", background: "var(--panel-2)" }}>
+              <img src={logo} alt={COMPANY_NAME} style={{ height: 40, width: "auto", display: "block", marginBottom: 8 }} />
+              <div style={{ fontSize: 13, fontWeight: 700 }}>{myProfile?.name || "Loading…"}</div>
+              {myProfile?.designation && <div style={{ fontSize: 12.5 }}>{myProfile.designation}</div>}
+              <div style={{ fontSize: 12.5 }}>{COMPANY_NAME}</div>
+              {myProfile?.email && <div style={{ fontSize: 12.5 }}>Email: {myProfile.email}</div>}
+              {myProfile?.phone && <div style={{ fontSize: 12.5 }}>Phone: {myProfile.phone}</div>}
+            </div>
+          </div>
+
           {composeError && <div style={{ color: "var(--red)", fontSize: 12.5, marginBottom: 12 }}>{composeError}</div>}
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn-primary" onClick={handleSendEmail} disabled={sendingEmail}>

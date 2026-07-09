@@ -27,6 +27,9 @@ async function handle(res) {
 }
 
 export const api = {
+  getMyProfile: () =>
+    fetch(`${BASE}/auth/me`, { headers: authHeaders() }).then(handle),
+
   getMyDashboard: () =>
     fetch(`${BASE}/dashboard/me`, { headers: authHeaders() }).then(handle),
 

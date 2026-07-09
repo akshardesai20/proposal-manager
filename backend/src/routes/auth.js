@@ -2,6 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { query } from "../db.js";
+import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -23,6 +24,18 @@ router.post("/login", async (req, res) => {
     { expiresIn: "12h" }
   );
   res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+});
+
+// GET /api/auth/me — the logged-in user's own full profile, including
+// fields (designation, phone) not carried in the JWT and not otherwise
+// fetchable by non-admins (GET /api/users is admin-only). Used for
+// previewing the outbound email signature before sending.
+router.get("/me", requireAuth, async (req, res) => {
+  const { rows } = await query(
+    `SELECT id, name, email, role, designation, phone FROM users WHERE id = $1`, [req.user.id]
+  );
+  if (!rows[0]) return res.status(404).json({ error: "User not found" });
+  res.json(rows[0]);
 });
 
 export default router;
