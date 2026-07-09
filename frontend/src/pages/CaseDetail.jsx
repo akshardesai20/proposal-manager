@@ -1074,18 +1074,27 @@ export default function CaseDetail({ user }) {
                 <div style={{
                   marginTop: 8, padding: "8px 10px", background: "var(--green-ink)",
                   border: "1px solid var(--teal-border)", borderRadius: 8,
-                  display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
+                  display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap",
                 }}>
                   <span style={{ fontSize: 12, color: "var(--green)" }}>
-                    This looks like an order confirmation.
+                    This looks like an order-related email — confirm the outcome:
                   </span>
-                  <button
-                    className="btn-primary"
-                    onClick={() => toggleOutcome("won", true)}
-                    style={{ padding: "4px 12px", fontSize: 11.5, whiteSpace: "nowrap" }}
-                  >
-                    Mark case as Won
-                  </button>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      className="btn-primary"
+                      onClick={() => toggleOutcome("won", true)}
+                      style={{ padding: "4px 12px", fontSize: 11.5, whiteSpace: "nowrap" }}
+                    >
+                      Mark case as Won
+                    </button>
+                    <button
+                      className="btn-ghost"
+                      onClick={() => toggleOutcome("lost", true)}
+                      style={{ padding: "4px 12px", fontSize: 11.5, whiteSpace: "nowrap", color: "var(--red)" }}
+                    >
+                      Mark case as Lost
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
