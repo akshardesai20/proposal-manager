@@ -1,6 +1,7 @@
 // Builds the offer document to match the real letterhead format
 // (reviewed directly from a real sent offer: 1079_Forozabad_NTPPL).
 import path from "path";
+import PDFDocument from "pdfkit";
 import { fileURLToPath } from "url";
 import { companyProfile } from "../config/companyProfile.js";
 
@@ -235,3 +236,19 @@ export function writeOfferPdf(doc, { ref, revision, date, customer, requirementT
 
   return grandTotal;
 }
+
+// Same rendering as GET /offers/:id/pdf, but collected into a Buffer
+// instead of piped to an HTTP response — for attaching to an outbound
+// email rather than downloading.
+export function offerPdfBuffer(pdfData) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: "A4", margin: 50 });
+    const chunks = [];
+    doc.on("data", (chunk) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+    writeOfferPdf(doc, pdfData);
+    doc.end();
+  });
+}
+

@@ -498,12 +498,20 @@ export default function CaseDetail({ user }) {
   const [followupError, setFollowupError] = useState("");
   const [addingFollowup, setAddingFollowup] = useState(false);
   const [expectedOrderDate, setExpectedOrderDate] = useState("");
+  const [emails, setEmails] = useState([]);
+  const [composeFor, setComposeFor] = useState(null); // { offerId, offerRef } for an offer send, or "followup" for a general email, or null
+  const [composeTo, setComposeTo] = useState("");
+  const [composeSubject, setComposeSubject] = useState("");
+  const [composeBody, setComposeBody] = useState("");
+  const [composeError, setComposeError] = useState("");
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   async function refresh() {
-    const [c, i, o] = await Promise.all([api.getCase(id), api.listCosting(id), api.listOffers(id)]);
+    const [c, i, o, em] = await Promise.all([api.getCase(id), api.listCosting(id), api.listOffers(id), api.listCaseEmails(id)]);
     setCaseData(c);
     setItems(i);
     setOffers(o);
+    setEmails(em);
     setNotes(c.notes || "");
     setNotesSaved(true);
     setFollowups(c.followups || []);
@@ -511,6 +519,51 @@ export default function CaseDetail({ user }) {
     setLoading(false);
   }
   useEffect(() => { refresh(); }, [id]);
+
+  function openComposeForOffer(offer) {
+    setComposeFor({ offerId: offer.id, offerRef: offer.ref });
+    setComposeTo(caseData?.customer_email || "");
+    setComposeSubject(`Offer ${offer.ref} — ${caseData?.customer_name || ""}`);
+    setComposeBody(
+      `Dear ${caseData?.customer_name || "Sir/Madam"},\n\nPlease find attached our offer ${offer.ref} for your requirement.\n\n` +
+      `Please let us know if you have any questions.\n\nRegards,`
+    );
+    setComposeError("");
+  }
+
+  function openComposeFollowup() {
+    setComposeFor("followup");
+    setComposeTo(caseData?.customer_email || "");
+    setComposeSubject(`Following up — ${caseData?.reference || `CASE-${String(caseData?.id).padStart(4, "0")}`}`);
+    setComposeBody(`Dear ${caseData?.customer_name || "Sir/Madam"},\n\nFollowing up on our earlier conversation regarding your requirement.\n\nRegards,`);
+    setComposeError("");
+  }
+
+  function closeCompose() {
+    setComposeFor(null);
+    setComposeError("");
+  }
+
+  async function handleSendEmail() {
+    setComposeError("");
+    if (!composeTo.trim()) { setComposeError("Recipient email is required"); return; }
+    if (!composeSubject.trim()) { setComposeError("Subject is required"); return; }
+    if (!composeBody.trim()) { setComposeError("Email body is required"); return; }
+    setSendingEmail(true);
+    try {
+      const payload = {
+        to: composeTo.trim(), subject: composeSubject.trim(), body: composeBody,
+        offer_id: composeFor && composeFor !== "followup" ? composeFor.offerId : null,
+      };
+      const sent = await api.sendCaseEmail(id, payload);
+      setEmails((prev) => [...prev, sent]);
+      setComposeFor(null);
+    } catch (err) {
+      setComposeError(err.message || "Failed to send email");
+    } finally {
+      setSendingEmail(false);
+    }
+  }
 
   async function handleAdd(payload) {
     await api.addCosting(id, payload);
@@ -864,6 +917,9 @@ export default function CaseDetail({ user }) {
                   <button className="btn-ghost" onClick={() => api.downloadOfferPdf(o.id, o.ref)} style={{ padding: "6px 12px", fontSize: 12 }}>
                     Download PDF
                   </button>
+                  <button className="btn-primary" onClick={() => openComposeForOffer(o)} style={{ padding: "6px 12px", fontSize: 12, marginLeft: 6 }}>
+                    Send to Customer
+                  </button>
                   {user?.role === "admin" && (
                     <button
                       className="btn-ghost"
@@ -877,6 +933,67 @@ export default function CaseDetail({ user }) {
               </div>
             ))}
           </div>
+        )}
+      </div>
+
+      {composeFor && (
+        <div className="card" style={{ padding: 20, marginTop: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+            {composeFor === "followup" ? "Compose follow-up email" : `Send offer ${composeFor.offerRef} to customer`}
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label className="fl">To</label>
+            <input value={composeTo} onChange={(e) => setComposeTo(e.target.value)} placeholder="customer@example.com" />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label className="fl">Subject</label>
+            <input value={composeSubject} onChange={(e) => setComposeSubject(e.target.value)} />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label className="fl">Message{composeFor !== "followup" ? " (PDF will be attached automatically)" : ""}</label>
+            <textarea rows={6} value={composeBody} onChange={(e) => setComposeBody(e.target.value)} />
+          </div>
+          {composeError && <div style={{ color: "var(--red)", fontSize: 12.5, marginBottom: 12 }}>{composeError}</div>}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn-primary" onClick={handleSendEmail} disabled={sendingEmail}>
+              {sendingEmail ? "Sending…" : "Send Email"}
+            </button>
+            <button className="btn-ghost" onClick={closeCompose}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      <h2 style={{ fontSize: 15, marginTop: 30, marginBottom: 12 }}>Emails</h2>
+      <div className="card" style={{ padding: 20, marginBottom: 20 }}>
+        <div style={{ marginBottom: emails.length ? 16 : 0 }}>
+          <button className="btn-ghost" onClick={openComposeFollowup} style={{ padding: "6px 12px", fontSize: 12 }}>
+            Compose email
+          </button>
+        </div>
+        {!emails.length ? (
+          <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>No emails sent or received on this case yet.</div>
+        ) : (
+          emails.map((em) => (
+            <div key={em.id} style={{ padding: "10px 0", borderTop: "1px solid var(--line-soft)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                <span style={{
+                  fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 20, color: "#fff",
+                  background: em.direction === "outbound" ? "#1bb8b0" : "#5d7188",
+                }}>
+                  {em.direction === "outbound" ? "Sent" : "Received"}
+                </span>
+                <span style={{ fontSize: 11, color: "var(--text-faint)", marginLeft: "auto" }}>
+                  {new Date(em.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </span>
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 500, marginTop: 6 }}>{em.subject}</div>
+              <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 2 }}>
+                {em.direction === "outbound" ? `To: ${em.to_email}` : `From: ${em.from_email}`}
+                {em.created_by_name && ` · ${em.created_by_name}`}
+              </div>
+              <div style={{ fontSize: 12.5, color: "var(--text-dim)", marginTop: 6, whiteSpace: "pre-wrap" }}>{em.body}</div>
+            </div>
+          ))
         )}
       </div>
 

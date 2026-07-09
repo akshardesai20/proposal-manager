@@ -220,6 +220,18 @@ export const api = {
       if (!r.ok) throw new Error("Failed to delete follow-up");
     }),
 
+  listCaseEmails: (caseId) =>
+    fetch(`${BASE}/cases/${caseId}/emails`, { headers: authHeaders() }).then(handle),
+
+  // payload: { to, subject, body, offer_id? } — offer_id attaches that
+  // offer's PDF fresh at send time.
+  sendCaseEmail: (caseId, payload) =>
+    fetch(`${BASE}/cases/${caseId}/emails/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(payload),
+    }).then(handle),
+
   listInquiries: (status = "pending") =>
     fetch(`${BASE}/inquiries?status=${encodeURIComponent(status)}`, { headers: authHeaders() }).then(handle),
 

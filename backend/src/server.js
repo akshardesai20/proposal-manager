@@ -11,6 +11,7 @@ import customerRoutes from "./routes/customers.js";
 import offerRoutes from "./routes/offers.js";
 import userRoutes from "./routes/users.js";
 import { caseItemsRouter, itemRouter } from "./routes/costingItems.js";
+import { caseEmailsRouter } from "./routes/caseEmails.js";
 import inquiryRoutes from "./routes/inquiries.js";
 import inboxPollRoutes from "./routes/inboxPoll.js";
 import dashboardRoutes from "./routes/dashboard.js";
@@ -59,6 +60,7 @@ async function main() {
   app.get("/api/health", (req, res) => res.json({ ok: true }));
   app.use("/api/auth", authRoutes);
   app.use("/api/cases/:caseId/costing", caseItemsRouter);
+  app.use("/api/cases/:caseId/emails", caseEmailsRouter);
   app.use("/api/costing", itemRouter);
   app.use("/api/catalog", catalogRoutes);
   app.use("/api/customers", customerRoutes);
