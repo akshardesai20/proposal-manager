@@ -17,6 +17,7 @@ const NAV_ITEMS = [
     ],
   },
   { to: "/customers", label: "Customers", icon: "\uD83D\uDC65" },
+  { to: "/tracker", label: "Tracker", icon: "\uD83D\uDCC8" },
 ];
 
 const ADMIN_NAV_ITEMS = [

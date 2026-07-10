@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import Login from "./pages/Login.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
+import Tracker from "./pages/Tracker.jsx";
 import Cases from "./pages/Cases.jsx";
 import Inquiries from "./pages/Inquiries.jsx";
 import CaseDetail from "./pages/CaseDetail.jsx";
@@ -44,6 +45,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Navigate to="/dashboard" />} />
           <Route path="/dashboard" element={<Dashboard user={user} />} />
+          <Route path="/tracker" element={<Tracker />} />
           <Route path="/inquiries" element={<Inquiries />} />
           <Route path="/cases" element={<Cases user={user} />} />
           <Route path="/cases/:id" element={<CaseDetail user={user} />} />
