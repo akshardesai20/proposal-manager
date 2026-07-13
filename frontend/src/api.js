@@ -211,6 +211,36 @@ export const api = {
   listFollowups: (caseId) =>
     fetch(`${BASE}/cases/${caseId}/followups`, { headers: authHeaders() }).then(handle),
 
+  downloadImportTemplate: async () => {
+    const res = await fetch(`${BASE}/import/template`, { headers: authHeaders() });
+    if (!res.ok) throw new Error("Failed to download the import template");
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "case-import-template.xlsx";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
+  // multipart upload — deliberately not using the JSON `handle()` helper
+  // since this sends FormData, not a JSON body.
+  previewImport: async (file) => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${BASE}/import/preview`, { method: "POST", headers: authHeaders(), body: form });
+    return handle(res);
+  },
+
+  commitImport: (rows, filename) =>
+    fetch(`${BASE}/import/commit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ rows, filename }),
+    }).then(handle),
+
   addFollowup: (caseId, payload) =>
     fetch(`${BASE}/cases/${caseId}/followups`, {
       method: "POST",

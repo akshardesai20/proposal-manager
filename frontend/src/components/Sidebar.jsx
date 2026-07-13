@@ -22,6 +22,7 @@ const NAV_ITEMS = [
 
 const ADMIN_NAV_ITEMS = [
   { to: "/users", label: "Users", icon: "\uD83D\uDD10" },
+  { to: "/import", label: "Import Cases", icon: "\uD83D\uDCE5" },
 ];
 
 export default function Sidebar({ user }) {

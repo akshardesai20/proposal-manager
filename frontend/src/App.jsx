@@ -8,6 +8,7 @@ import Inquiries from "./pages/Inquiries.jsx";
 import CaseDetail from "./pages/CaseDetail.jsx";
 import Customers from "./pages/Customers.jsx";
 import Users from "./pages/Users.jsx";
+import Import from "./pages/Import.jsx";
 import TopBar from "./components/TopBar.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 
@@ -51,6 +52,7 @@ export default function App() {
           <Route path="/cases/:id" element={<CaseDetail user={user} />} />
           <Route path="/customers" element={<Customers />} />
           <Route path="/users" element={isAdmin ? <Users /> : <Navigate to="/dashboard" />} />
+          <Route path="/import" element={isAdmin ? <Import /> : <Navigate to="/dashboard" />} />
           <Route path="*" element={<Navigate to="/dashboard" />} />
         </Routes>
       </div>
