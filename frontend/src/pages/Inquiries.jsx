@@ -17,7 +17,10 @@ const EMAIL_TYPE_META = {
 function ConvertForm({ inquiry, onDone, onCancel }) {
   const [customer, setCustomer] = useState(null);
   const [loadingCustomer, setLoadingCustomer] = useState(!!inquiry.matched_customer_id);
-  const [requirement, setRequirement] = useState(inquiry.ai_summary || inquiry.body_text || "");
+  const [requirement, setRequirement] = useState(
+    (inquiry.ai_summary || inquiry.body_text || "") +
+    (inquiry.ai_model_recommendation ? `\n\nSuggested model (first cut): ${inquiry.ai_model_recommendation}` : "")
+  );
   const [segment, setSegment] = useState(inquiry.ai_suggested_segment || "");
   const [inquiryType, setInquiryType] = useState("");
   const [error, setError] = useState("");
@@ -137,16 +140,8 @@ function ConvertForm({ inquiry, onDone, onCancel }) {
         </div>
       </div>
       <div style={{ marginBottom: 14 }}>
-        <label className="fl">Requirement{inquiry.ai_summary ? " (AI summary — edit as needed)" : ""}</label>
-        <textarea rows={4} value={requirement} onChange={(e) => setRequirement(e.target.value)} placeholder="Pulled from the email body — edit as needed" />
-        {inquiry.ai_model_recommendation && (
-          <div style={{
-            fontSize: 12, color: "var(--teal-deep)", marginTop: 6, padding: "8px 10px",
-            background: "var(--teal-ink)", border: "1px solid var(--teal-border)", borderRadius: 8,
-          }}>
-            <b>Suggested model (first cut):</b> {inquiry.ai_model_recommendation}
-          </div>
-        )}
+        <label className="fl">Requirement{inquiry.ai_summary ? " (AI summary + suggested model — edit as needed)" : ""}</label>
+        <textarea rows={7} value={requirement} onChange={(e) => setRequirement(e.target.value)} placeholder="Pulled from the email body — edit as needed" />
       </div>
       {error && <div style={{ color: "var(--red)", fontSize: 12.5, marginBottom: 12 }}>{error}</div>}
       <div style={{ display: "flex", gap: 8 }}>
