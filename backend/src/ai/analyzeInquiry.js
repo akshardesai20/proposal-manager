@@ -1,8 +1,19 @@
 // Calls the OpenAI API to turn a raw inbound email into structured,
 // actionable fields for the Inbox review queue: a crisp summary, a guess
-// at the industry/segment, an extracted customer name, and a
-// classification of what kind of email this is (new inquiry, follow-up,
-// negotiation, or order).
+// at the industry/segment, an extracted customer name, a classification
+// of what kind of email this is, and a basic first-cut instrument model
+// recommendation.
+//
+// The model recommendation is deliberately grounded in the actual seeded
+// Siemens catalog (siemens_families), passed in as `catalogFamilies` —
+// not just the model's own general knowledge of Siemens products. This
+// matters: without grounding, the AI could recommend something that
+// sounds plausible but isn't actually in the catalog, or isn't something
+// this business carries. It's still explicitly a first-cut suggestion
+// (family/trade name level, e.g. "SITRANS P320 pressure transmitter" —
+// not a fully-specified order code), meant to save the person converting
+// an inquiry a first lookup, not to replace the actual costing/decode
+// workflow.
 //
 // This is enrichment, not a dependency — every caller must treat a
 // failure here as non-fatal. Email capture itself (the poll cycle) must
@@ -19,7 +30,7 @@
 const SEGMENT_VALUES = ["ww", "industries", "instrument_service"];
 const EMAIL_TYPE_VALUES = ["new_inquiry", "follow_up", "negotiation", "order", "other"];
 
-const SYSTEM_PROMPT = `You analyze inbound business emails for a Siemens process-instrumentation channel partner's sales team. Given an email's sender, subject, and body, extract structured information to help a salesperson triage it quickly.
+const BASE_SYSTEM_PROMPT = `You analyze inbound business emails for a Siemens process-instrumentation channel partner's sales team. Given an email's sender, subject, and body, extract structured information to help a salesperson triage it quickly.
 
 Respond with ONLY a single JSON object, no other text, no markdown code fences. Shape exactly:
 {
@@ -28,10 +39,19 @@ Respond with ONLY a single JSON object, no other text, no markdown code fences. 
   "suggested_segment": "one of: ww, industries, instrument_service — your best guess at which business segment this belongs to (ww = water/wastewater treatment, industries = general industrial/manufacturing, instrument_service = calibration/service/AMC work rather than new equipment) — or null if unclear",
   "suggested_customer_name": "the sender's company name as best you can extract it from the email signature or body — or null if not stated",
   "suggested_customer_phone": "a phone or mobile number from the email signature/body, digits and + only (e.g. '+91 98765 43210') — or null if none is stated",
-  "email_type": "one of: new_inquiry, follow_up, negotiation, order, other — new_inquiry = a fresh requirement being raised for the first time; follow_up = checking status on something already discussed; negotiation = discussing price/terms/quantities on an existing offer; order = confirming/placing an order or PO; other = anything else (spam, unrelated correspondence, etc.)"
+  "email_type": "one of: new_inquiry, follow_up, negotiation, order, other — new_inquiry = a fresh requirement being raised for the first time; follow_up = checking status on something already discussed; negotiation = discussing price/terms/quantities on an existing offer; order = confirming/placing an order or PO; other = anything else (spam, unrelated correspondence, etc.)",
+  "recommended_models": "a SHORT first-cut suggestion of which product family/families from the catalog below best fit what's being asked for, by trade name (e.g. 'SITRANS P320 (pressure transmitter) — likely fits the pressure measurement mentioned'). Do NOT invent a full part number. If nothing in the catalog clearly fits, or the email doesn't describe a specific instrument need, set this to null — do not guess."
 }
 
 If the email is clearly not a genuine business inquiry (spam, newsletter, unrelated), set email_type to "other" and summary to a brief note saying so.`;
+
+function buildSystemPrompt(catalogFamilies) {
+  if (!catalogFamilies || !catalogFamilies.length) return BASE_SYSTEM_PROMPT;
+  const catalogList = catalogFamilies
+    .map((f) => `- ${f.trade_name || f.family} (${f.instrument_type || "instrument"}): ${f.description || f.family}`)
+    .join("\n");
+  return `${BASE_SYSTEM_PROMPT}\n\nOur actual product catalog, for the "recommended_models" field — only recommend from this list, never something outside it:\n${catalogList}`;
+}
 
 function buildUserMessage({ fromName, fromEmail, subject, bodyText }) {
   return [
@@ -55,7 +75,13 @@ function safeParseJson(text) {
 // configured, or the API call failed). Never throws — callers should
 // still proceed with the rest of their work regardless of what this
 // returns.
-export async function analyzeInquiry({ fromName, fromEmail, subject, bodyText }) {
+//
+// catalogFamilies (optional): [{ trade_name, family, instrument_type,
+// description }, ...] — pass the seeded siemens_families list to ground
+// the model recommendation in what's actually carried. Omit it and the
+// recommendation is simply not attempted (safer than guessing from
+// general knowledge).
+export async function analyzeInquiry({ fromName, fromEmail, subject, bodyText, catalogFamilies }) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return { error: "OPENAI_API_KEY not configured" };
 
@@ -70,10 +96,10 @@ export async function analyzeInquiry({ fromName, fromEmail, subject, bodyText })
       },
       body: JSON.stringify({
         model,
-        max_tokens: 400,
+        max_tokens: 500,
         response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: buildSystemPrompt(catalogFamilies) },
           { role: "user", content: buildUserMessage({ fromName, fromEmail, subject, bodyText }) },
         ],
       }),
@@ -98,6 +124,7 @@ export async function analyzeInquiry({ fromName, fromEmail, subject, bodyText })
       suggested_customer_name: parsed.suggested_customer_name || null,
       suggested_customer_phone: parsed.suggested_customer_phone || null,
       email_type: emailType,
+      recommended_models: parsed.recommended_models || null,
       analyzed_at: new Date(),
       error: null,
     };

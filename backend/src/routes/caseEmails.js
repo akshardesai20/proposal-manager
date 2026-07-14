@@ -121,14 +121,19 @@ caseEmailsRouter.post("/:emailId/analyze", async (req, res) => {
   if (!email) return res.status(404).json({ error: "Email not found on this case" });
   if (email.direction !== "inbound") return res.status(400).json({ error: "Only inbound emails can be analyzed" });
 
+  const catalogFamilies = (await query(
+    `SELECT trade_name, family, instrument_type, description FROM siemens_families ORDER BY family`
+  )).rows;
+
   const ai = await analyzeInquiry({
     fromName: null, fromEmail: email.from_email, subject: email.subject, bodyText: email.body,
+    catalogFamilies,
   });
 
   const { rows } = await query(
-    `UPDATE case_emails SET ai_summary = $1, ai_email_type = $2, ai_analyzed_at = $3, ai_error = $4
-     WHERE id = $5 RETURNING *`,
-    [ai.summary || null, ai.email_type || null, ai.error ? null : ai.analyzed_at, ai.error || null, req.params.emailId]
+    `UPDATE case_emails SET ai_summary = $1, ai_email_type = $2, ai_analyzed_at = $3, ai_error = $4, ai_model_recommendation = $5
+     WHERE id = $6 RETURNING *`,
+    [ai.summary || null, ai.email_type || null, ai.error ? null : ai.analyzed_at, ai.error || null, ai.recommended_models || null, req.params.emailId]
   );
 
   if (ai.error) return res.status(502).json({ error: ai.error, email: rows[0] });

@@ -78,9 +78,14 @@ router.post("/:id/analyze", async (req, res) => {
   const inquiry = (await query(`SELECT * FROM inbound_inquiries WHERE id = $1`, [req.params.id])).rows[0];
   if (!inquiry) return res.status(404).json({ error: "Inquiry not found" });
 
+  const catalogFamilies = (await query(
+    `SELECT trade_name, family, instrument_type, description FROM siemens_families ORDER BY family`
+  )).rows;
+
   const ai = await analyzeInquiry({
     fromName: inquiry.from_name, fromEmail: inquiry.from_email,
     subject: inquiry.subject, bodyText: inquiry.body_text,
+    catalogFamilies,
   });
 
   // Fuzzy customer match by NAME, separate from matched_customer_id
@@ -110,12 +115,13 @@ router.post("/:id/analyze", async (req, res) => {
     `UPDATE inbound_inquiries SET
        ai_summary = $1, ai_industry_type = $2, ai_suggested_segment = $3,
        ai_suggested_customer_name = $4, ai_suggested_customer_phone = $5, ai_email_type = $6,
-       ai_analyzed_at = $7, ai_error = $8, ai_matched_customer_id = $9
-     WHERE id = $10 RETURNING *`,
+       ai_analyzed_at = $7, ai_error = $8, ai_matched_customer_id = $9, ai_model_recommendation = $10
+     WHERE id = $11 RETURNING *`,
     [
       ai.summary || null, ai.industry_type || null, ai.suggested_segment || null,
       ai.suggested_customer_name || null, ai.suggested_customer_phone || null, ai.email_type || null,
-      ai.error ? null : ai.analyzed_at, ai.error || null, aiMatchedCustomerId, req.params.id,
+      ai.error ? null : ai.analyzed_at, ai.error || null, aiMatchedCustomerId, ai.recommended_models || null,
+      req.params.id,
     ]
   );
 

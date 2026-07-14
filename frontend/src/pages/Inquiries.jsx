@@ -139,6 +139,14 @@ function ConvertForm({ inquiry, onDone, onCancel }) {
       <div style={{ marginBottom: 14 }}>
         <label className="fl">Requirement{inquiry.ai_summary ? " (AI summary — edit as needed)" : ""}</label>
         <textarea rows={4} value={requirement} onChange={(e) => setRequirement(e.target.value)} placeholder="Pulled from the email body — edit as needed" />
+        {inquiry.ai_model_recommendation && (
+          <div style={{
+            fontSize: 12, color: "var(--teal-deep)", marginTop: 6, padding: "8px 10px",
+            background: "var(--teal-ink)", border: "1px solid var(--teal-border)", borderRadius: 8,
+          }}>
+            <b>Suggested model (first cut):</b> {inquiry.ai_model_recommendation}
+          </div>
+        )}
       </div>
       {error && <div style={{ color: "var(--red)", fontSize: 12.5, marginBottom: 12 }}>{error}</div>}
       <div style={{ display: "flex", gap: 8 }}>
@@ -284,6 +292,11 @@ export default function Inquiries() {
                               </div>
                             )}
                           </div>
+                          {inq.ai_model_recommendation && (
+                            <div style={{ fontSize: 11, color: "var(--teal-deep)", marginTop: 4 }}>
+                              Suggested model: {inq.ai_model_recommendation}
+                            </div>
+                          )}
                         </div>
                       ) : inq.ai_error ? (
                         <div style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 6, fontStyle: "italic" }}>

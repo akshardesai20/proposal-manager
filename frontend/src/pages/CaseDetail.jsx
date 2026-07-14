@@ -1058,6 +1058,11 @@ export default function CaseDetail({ user }) {
                   AI summary: {em.ai_summary}
                 </div>
               )}
+              {em.ai_model_recommendation && (
+                <div style={{ fontSize: 12, color: "var(--teal-deep)", marginTop: 4 }}>
+                  Suggested model: {em.ai_model_recommendation}
+                </div>
+              )}
 
               {em.direction === "inbound" && !em.ai_analyzed_at && (
                 <button
