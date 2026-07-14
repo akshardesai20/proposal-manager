@@ -17,6 +17,8 @@ const MAX_INPUT_CHARS = 60000; // ~15k tokens — generous for a single-family d
 
 const SYSTEM_PROMPT = `You extract structured product catalog data from instrumentation manufacturer datasheets, for a Siemens process-instrumentation channel partner's internal catalog system.
 
+CRITICAL: extract every single row of every table completely — never summarize a long list down to a few representative examples. A datasheet with 90 optional-extra codes must produce 90 entries in your output, not a handful of samples. This matters more than anything else in this task.
+
 Respond with ONLY a single JSON object, no other text, no markdown fences. Shape exactly:
 {
   "families": [
@@ -50,6 +52,7 @@ Respond with ONLY a single JSON object, no other text, no markdown fences. Shape
 }
 
 Rules:
+- COMPLETENESS IS MANDATORY, NOT OPTIONAL. If a table or list has 90 rows, your output must have 90 corresponding entries — never a "representative sample" or "a few examples from each category." This is the single most common way this task fails: silently transcribing only some entries from a long list while leaving the rest out, without saying so. An incomplete catalog with wrong quantities is actively harmful — a missing order code means someone can't quote it at all. When you finish a family, count the option/suffix rows in the source text against what you're about to output for that same section — if they don't match, go back and add what's missing before responding.
 - is_fix means this position always has the same fixed value (rare) — is_range means this position represents a numeric range/measurement rather than discrete lettered options (also rare) — default both to false unless the datasheet clearly indicates otherwise.
 - If a table is genuinely ambiguous or incomplete in the source text, still include what you're confident about, and describe the gap in "notes" rather than guessing at missing rows.
 - Multiple distinct families in one document should each get their own entry in "families". If a document presents several closely related model names sharing one ordering table (e.g. a gauge and an absolute version of the same base instrument), treat each as its own family entry, since they'll typically end up as separate catalog items even though the datasheet describes them together.
