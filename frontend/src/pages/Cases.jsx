@@ -304,7 +304,7 @@ export default function Cases({ user }) {
         })}
       </div>
 
-      <div className="card" style={{ overflow: "hidden" }}>
+      <div className="card" style={{ overflowX: "auto", overflowY: "hidden" }}>
         {loading ? (
           <div className="empty-state">Loading…</div>
         ) : loadError ? (

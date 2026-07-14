@@ -844,7 +844,7 @@ export default function CaseDetail({ user }) {
         )}
       </div>
 
-      <div className="card" style={{ overflow: "hidden" }}>
+      <div className="card" style={{ overflowX: "auto", overflowY: "hidden" }}>
         {!items.length ? (
           <div className="empty-state">No costing lines yet.</div>
         ) : (

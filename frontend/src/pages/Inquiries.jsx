@@ -219,7 +219,7 @@ export default function Inquiries() {
 
       {actionError && <div style={{ color: "var(--red)", fontSize: 12.5, marginBottom: 14 }}>{actionError}</div>}
 
-      <div className="card" style={{ overflow: "hidden" }}>
+      <div className="card" style={{ overflowX: "auto", overflowY: "hidden" }}>
         {loading ? (
           <div className="empty-state">Loading…</div>
         ) : loadError ? (

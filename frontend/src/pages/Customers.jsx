@@ -80,7 +80,7 @@ export default function Customers() {
         />
       </div>
 
-      <div className="card" style={{ overflow: "hidden" }}>
+      <div className="card" style={{ overflowX: "auto", overflowY: "hidden" }}>
         {loading ? (
           <div className="empty-state">Loading…</div>
         ) : loadError ? (

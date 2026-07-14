@@ -90,7 +90,7 @@ export default function Users() {
         </div>
       )}
 
-      <div className="card" style={{ overflow: "hidden" }}>
+      <div className="card" style={{ overflowX: "auto", overflowY: "hidden" }}>
         {loading ? (
           <div className="empty-state">Loading…</div>
         ) : error && !users.length ? (
