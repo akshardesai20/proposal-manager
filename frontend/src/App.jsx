@@ -10,6 +10,8 @@ import CaseDetail from "./pages/CaseDetail.jsx";
 import Customers from "./pages/Customers.jsx";
 import Users from "./pages/Users.jsx";
 import Import from "./pages/Import.jsx";
+import CatalogImport from "./pages/CatalogImport.jsx";
+import AcceptQuote from "./pages/AcceptQuote.jsx";
 import TopBar from "./components/TopBar.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 
@@ -33,6 +35,7 @@ export default function App() {
   if (!authed) {
     return (
       <Routes>
+        <Route path="/accept/:token" element={<AcceptQuote />} />
         <Route path="/login" element={<Login onLogin={setUser} />} />
         <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
@@ -46,6 +49,7 @@ export default function App() {
         <TopBar user={user} onLogout={logout} title={import.meta.env.VITE_PRODUCT_NAME || "ProposalFlow"} />
         <Routes>
           <Route path="/login" element={<Navigate to="/dashboard" />} />
+          <Route path="/accept/:token" element={<AcceptQuote />} />
           <Route path="/dashboard" element={<Dashboard user={user} />} />
           <Route path="/tracker" element={<Tracker />} />
           <Route path="/inquiries" element={<Inquiries />} />
@@ -55,6 +59,11 @@ export default function App() {
           <Route path="/customers" element={<Customers />} />
           <Route path="/users" element={isAdmin ? <Users /> : <Navigate to="/dashboard" />} />
           <Route path="/import" element={isAdmin ? <Import /> : <Navigate to="/dashboard" />} />
+          <Route path="/catalog-import" element={
+            isAdmin && import.meta.env.VITE_CATALOG_IMPORT_ENABLED === "true"
+              ? <CatalogImport />
+              : <Navigate to="/dashboard" />
+          } />
           <Route path="*" element={<Navigate to="/dashboard" />} />
         </Routes>
       </div>

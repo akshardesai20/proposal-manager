@@ -24,6 +24,13 @@ const NAV_ITEMS = [
 const ADMIN_NAV_ITEMS = [
   { to: "/users", label: "Users", icon: "\uD83D\uDD10" },
   { to: "/import", label: "Import Cases", icon: "\uD83D\uDCE5" },
+  // Deliberately not shown on customer-facing deployments — this feature
+  // costs real OpenAI API usage per use and needs someone who knows the
+  // catalog domain reviewing the output, so it's opt-in per instance
+  // rather than something every customer's admin account can reach.
+  ...(import.meta.env.VITE_CATALOG_IMPORT_ENABLED === "true"
+    ? [{ to: "/catalog-import", label: "Catalog Import", icon: "\uD83D\uDCD8" }]
+    : []),
 ];
 
 export default function Sidebar({ user }) {

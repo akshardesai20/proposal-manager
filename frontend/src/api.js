@@ -271,6 +271,42 @@ export const api = {
   getOutbox: () =>
     fetch(`${BASE}/outbox`, { headers: authHeaders() }).then(handle),
 
+  // No auth needed — these are hit by a customer with no login, via a
+  // link in the offer email.
+  getPublicOffer: (token) =>
+    fetch(`${BASE}/public/offers/${token}`).then(handle),
+
+  acceptPublicOffer: (token, name) =>
+    fetch(`${BASE}/public/offers/${token}/accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    }).then(handle),
+
+  listManufacturers: () =>
+    fetch(`${BASE}/catalog-import/manufacturers`, { headers: authHeaders() }).then(handle),
+
+  addManufacturer: (name) =>
+    fetch(`${BASE}/catalog-import/manufacturers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ name }),
+    }).then(handle),
+
+  extractCatalog: async (file) => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${BASE}/catalog-import/extract`, { method: "POST", headers: authHeaders(), body: form });
+    return handle(res);
+  },
+
+  commitCatalog: (manufacturerId, families, addons) =>
+    fetch(`${BASE}/catalog-import/commit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ manufacturerId, families, addons }),
+    }).then(handle),
+
   listInquiries: (status = "pending") =>
     fetch(`${BASE}/inquiries?status=${encodeURIComponent(status)}`, { headers: authHeaders() }).then(handle),
 

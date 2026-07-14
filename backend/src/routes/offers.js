@@ -1,4 +1,5 @@
 import { Router } from "express";
+import crypto from "crypto";
 import PDFDocument from "pdfkit";
 import { pool, query } from "../db.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
@@ -58,10 +59,11 @@ router.post("/cases/:caseId/offer", async (req, res) => {
       range_value: it.range_value, qty: it.qty, final_unit_price: it.final_unit_price, model_code: it.model_code,
     }));
 
+    const acceptToken = crypto.randomBytes(24).toString("hex");
     const offerRow = (await client.query(
-      `INSERT INTO offers (case_id, ref, revision, prepared_by, items_snapshot, terms_snapshot, notes_snapshot, generated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7, now()) RETURNING *`,
-      [caseId, ref, revision, req.user.id, JSON.stringify(itemsSnapshot), JSON.stringify(STANDARD_TERMS), caseRow.notes || null]
+      `INSERT INTO offers (case_id, ref, revision, prepared_by, items_snapshot, terms_snapshot, notes_snapshot, generated_at, accept_token)
+       VALUES ($1,$2,$3,$4,$5,$6,$7, now(), $8) RETURNING *`,
+      [caseId, ref, revision, req.user.id, JSON.stringify(itemsSnapshot), JSON.stringify(STANDARD_TERMS), caseRow.notes || null, acceptToken]
     )).rows[0];
 
     // Only move the stage forward — generating a later revision on a case
@@ -89,7 +91,8 @@ router.post("/cases/:caseId/offer", async (req, res) => {
 // GET /api/cases/:caseId/offers — revision history
 router.get("/cases/:caseId/offers", async (req, res) => {
   const { rows } = await query(
-    `SELECT o.id, o.ref, o.revision, o.generated_at, u.name AS prepared_by_name
+    `SELECT o.id, o.ref, o.revision, o.generated_at, u.name AS prepared_by_name,
+            o.accept_token, o.accepted_at, o.accepted_by_name
      FROM offers o LEFT JOIN users u ON u.id = o.prepared_by
      WHERE o.case_id = $1 ORDER BY o.revision DESC`,
     [req.params.caseId]

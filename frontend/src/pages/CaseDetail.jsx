@@ -554,8 +554,12 @@ export default function CaseDetail({ user }) {
     // rather than a brand-new thread. Falls back to a generic subject if
     // this case wasn't created from an inbound email.
     setComposeSubject(caseData?.origin_email_subject || `Offer ${offer.ref} — ${caseData?.customer_name || ""}`);
+    const acceptLink = offer.accept_token
+      ? `${window.location.origin}${import.meta.env.BASE_URL}#/accept/${offer.accept_token}`
+      : null;
     setComposeBody(
       `Dear Sir,\n\nPlease find attached our offer ${offer.ref} for your requirement.\n\n` +
+      (acceptLink ? `You can review and accept this quote online here:\n${acceptLink}\n\n` : "") +
       `Please let us know if you have any questions.\n\nRegards,`
     );
     setComposeError("");
@@ -947,6 +951,14 @@ export default function CaseDetail({ user }) {
                   <span style={{ fontSize: 12, color: "var(--text-faint)" }}>
                     {o.prepared_by_name} · {new Date(o.generated_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                   </span>
+                  {o.accepted_at && (
+                    <span style={{
+                      fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 20, color: "#fff",
+                      background: "#3fb950", marginLeft: 8,
+                    }}>
+                      Accepted online by {o.accepted_by_name}
+                    </span>
+                  )}
                 </div>
                 <div>
                   <button className="btn-ghost" onClick={() => api.downloadOfferPdf(o.id, o.ref)} style={{ padding: "6px 12px", fontSize: 12 }}>

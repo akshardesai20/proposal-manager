@@ -18,6 +18,8 @@ import dashboardRoutes from "./routes/dashboard.js";
 import seedDemoRoutes from "./routes/seedDemo.js";
 import caseImportRoutes from "./routes/caseImport.js";
 import outboxRoutes from "./routes/outbox.js";
+import publicOffersRoutes from "./routes/publicOffers.js";
+import catalogImportRoutes from "./routes/catalogImport.js";
 
 dotenv.config();
 
@@ -74,6 +76,8 @@ async function main() {
   app.use("/api/dashboard", dashboardRoutes);
   app.use("/api/import", caseImportRoutes);
   app.use("/api/outbox", outboxRoutes);
+  app.use("/api/public/offers", publicOffersRoutes);
+  app.use("/api/catalog-import", catalogImportRoutes);
   // Mounted last and deliberately broad (defines its own full sub-paths
   // like /cases/:id/offer, /offers/:id/pdf) — this must come after every
   // more specific /api/... mount above. offers.js applies requireAuth to
