@@ -40,7 +40,7 @@ Respond with ONLY a single JSON object, no other text, no markdown code fences. 
   "suggested_customer_name": "the sender's company name as best you can extract it from the email signature or body — or null if not stated",
   "suggested_customer_phone": "a phone or mobile number from the email signature/body, digits and + only (e.g. '+91 98765 43210') — or null if none is stated",
   "email_type": "one of: new_inquiry, follow_up, negotiation, order, other — new_inquiry = a fresh requirement being raised for the first time; follow_up = checking status on something already discussed; negotiation = discussing price/terms/quantities on an existing offer; order = confirming/placing an order or PO; other = anything else (spam, unrelated correspondence, etc.)",
-  "recommended_models": "a SHORT first-cut suggestion of which product family/families from the catalog below best fit what's being asked for, by trade name (e.g. 'SITRANS P320 (pressure transmitter) — likely fits the pressure measurement mentioned'). Do NOT invent a full part number. If nothing in the catalog clearly fits, or the email doesn't describe a specific instrument need, set this to null — do not guess."
+  "recommended_models": "a first-cut suggestion, one line per DISTINCT instrument type mentioned in the email, formatted exactly like: 'Pressure Transmitter - SITRANS P320 / P420' (instrument type, a dash, then 1-2 matching trade names from the catalog below separated by a slash). Join multiple lines with ', ' — e.g. 'Radar Level Transmitter - SITRANS LR100, Pressure Transmitter - SITRANS P320 / P420, Electromagnetic Flowmeter - SITRANS FMS300 / FMS500'. ONLY use trade names that appear in the catalog list below — never invent one. If an instrument type is mentioned but NOTHING in the catalog matches it, still include that line but say so plainly, e.g. 'Radar Level Transmitter - no matching model in current catalog' — do not silently skip it and do not substitute a different instrument type as if it were close enough. If the email doesn't describe any specific instrument need at all, set this to null."
 }
 
 If the email is clearly not a genuine business inquiry (spam, newsletter, unrelated), set email_type to "other" and summary to a brief note saying so.`;
@@ -96,7 +96,7 @@ export async function analyzeInquiry({ fromName, fromEmail, subject, bodyText, c
       },
       body: JSON.stringify({
         model,
-        max_tokens: 500,
+        max_tokens: 600,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: buildSystemPrompt(catalogFamilies) },
