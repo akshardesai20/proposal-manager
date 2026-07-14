@@ -41,6 +41,7 @@ jobs:
           VITE_API_BASE: ${{ vars.VITE_API_BASE }}
           VITE_COMPANY_NAME: ${{ vars.VITE_COMPANY_NAME }}
           VITE_PRODUCT_NAME: ${{ vars.VITE_PRODUCT_NAME }}
+          VITE_CATALOG_IMPORT_ENABLED: ${{ vars.VITE_CATALOG_IMPORT_ENABLED }}
         run: npm run build
 
       - uses: actions/upload-pages-artifact@v3
