@@ -77,11 +77,18 @@ caseEmailsRouter.post("/send", async (req, res) => {
     attachments.push({ filename: `${offer.ref.replace(/\//g, "-")}.pdf`, content: pdfBuffer });
   }
 
+  // Separated from the DB insert below on purpose: whether this succeeds
+  // or fails, we still want a record of the attempt — a failed send used
+  // to just vanish with nothing persisted anywhere, which made the Outbox
+  // useless for exactly the case it matters most (knowing something
+  // didn't go out so it can be retried).
+  let messageId = null;
+  let sendError = null;
   try {
     // Defense in depth on top of sendMail.js's own SMTP-level timeouts —
     // guarantees this request always resolves within ~25s even if
     // something outside the SMTP handshake itself hangs (e.g. DNS).
-    const { messageId } = await Promise.race([
+    const result = await Promise.race([
       sendMail({
         to: to.trim(), subject: finalSubject, text: finalText, html: finalHtml,
         attachments: attachments.length ? attachments : undefined,
@@ -91,21 +98,25 @@ caseEmailsRouter.post("/send", async (req, res) => {
         setTimeout(() => reject(new Error("Timed out after 25s trying to send — the mail server may be unreachable or slow to respond. Try again in a moment.")), 25000)
       ),
     ]);
-
-    const { rows } = await query(
-      `INSERT INTO case_emails (case_id, direction, to_email, from_email, subject, body, message_id, in_reply_to, offer_id, created_by)
-       VALUES ($1,'outbound',$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [
-        req.params.caseId, to.trim(),
-        process.env.OUTBOUND_SMTP_USER || process.env.INBOX_IMAP_USER || null,
-        finalSubject, body, messageId, in_reply_to || null, offer_id || null, req.user.id,
-      ]
-    );
-    res.status(201).json(rows[0]);
+    messageId = result.messageId;
   } catch (err) {
     console.error("[case-emails:send]", err);
-    res.status(502).json({ error: err.message || "Failed to send email" });
+    sendError = err.message || "Failed to send email";
   }
+
+  const { rows } = await query(
+    `INSERT INTO case_emails (case_id, direction, to_email, from_email, subject, body, message_id, in_reply_to, offer_id, created_by, status, error_message)
+     VALUES ($1,'outbound',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+    [
+      req.params.caseId, to.trim(),
+      process.env.OUTBOUND_SMTP_USER || process.env.INBOX_IMAP_USER || null,
+      finalSubject, body, messageId, in_reply_to || null, offer_id || null, req.user.id,
+      sendError ? "failed" : "sent", sendError,
+    ]
+  );
+
+  if (sendError) return res.status(502).json({ error: sendError, email: rows[0] });
+  res.status(201).json(rows[0]);
 });
 
 // POST /api/cases/:caseId/emails/:emailId/analyze — classifies an inbound

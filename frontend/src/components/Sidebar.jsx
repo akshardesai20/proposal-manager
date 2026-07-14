@@ -7,6 +7,7 @@ const COMPANY_NAME = import.meta.env.VITE_COMPANY_NAME || "Your Company Name";
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: "\uD83D\uDCCA" },
   { to: "/inquiries", label: "Inbox", icon: "\uD83D\uDCE5" },
+  { to: "/outbox", label: "Outbox", icon: "\uD83D\uDCE4" },
   {
     to: "/cases",
     label: "Proposals",

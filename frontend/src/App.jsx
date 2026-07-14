@@ -5,6 +5,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import Tracker from "./pages/Tracker.jsx";
 import Cases from "./pages/Cases.jsx";
 import Inquiries from "./pages/Inquiries.jsx";
+import Outbox from "./pages/Outbox.jsx";
 import CaseDetail from "./pages/CaseDetail.jsx";
 import Customers from "./pages/Customers.jsx";
 import Users from "./pages/Users.jsx";
@@ -48,6 +49,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard user={user} />} />
           <Route path="/tracker" element={<Tracker />} />
           <Route path="/inquiries" element={<Inquiries />} />
+          <Route path="/outbox" element={<Outbox />} />
           <Route path="/cases" element={<Cases user={user} />} />
           <Route path="/cases/:id" element={<CaseDetail user={user} />} />
           <Route path="/customers" element={<Customers />} />

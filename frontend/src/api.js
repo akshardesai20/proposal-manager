@@ -268,6 +268,9 @@ export const api = {
   analyzeCaseEmail: (caseId, emailId) =>
     fetch(`${BASE}/cases/${caseId}/emails/${emailId}/analyze`, { method: "POST", headers: authHeaders() }).then(handle),
 
+  getOutbox: () =>
+    fetch(`${BASE}/outbox`, { headers: authHeaders() }).then(handle),
+
   listInquiries: (status = "pending") =>
     fetch(`${BASE}/inquiries?status=${encodeURIComponent(status)}`, { headers: authHeaders() }).then(handle),
 
