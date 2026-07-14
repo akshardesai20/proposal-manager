@@ -21,7 +21,7 @@ Respond with ONLY a single JSON object, no other text, no markdown fences. Shape
 {
   "families": [
     {
-      "base_code": "the manufacturer's base order code, e.g. '7ML530' — REQUIRED, must be unique per family",
+      "base_code": "the manufacturer's base order code, e.g. '7ML530'. If this manufacturer's ordering scheme doesn't use a separate numeric/alpha prefix distinct from the model name (some brands just use the model name itself, e.g. 'PGS300'), use the model name as base_code — REQUIRED either way, must be unique per family",
       "family": "the family/model name as the manufacturer names it, e.g. 'SITRANS LR100'",
       "short_name": "a short descriptive name, e.g. 'Compact Radar Level Transmitter'",
       "description": "1-3 sentences describing what this instrument is and does, drawn from the datasheet",
@@ -52,7 +52,9 @@ Respond with ONLY a single JSON object, no other text, no markdown fences. Shape
 Rules:
 - is_fix means this position always has the same fixed value (rare) — is_range means this position represents a numeric range/measurement rather than discrete lettered options (also rare) — default both to false unless the datasheet clearly indicates otherwise.
 - If a table is genuinely ambiguous or incomplete in the source text, still include what you're confident about, and describe the gap in "notes" rather than guessing at missing rows.
-- Multiple distinct families in one document should each get their own entry in "families".
+- Multiple distinct families in one document should each get their own entry in "families". If a document presents several closely related model names sharing one ordering table (e.g. a gauge and an absolute version of the same base instrument), treat each as its own family entry, since they'll typically end up as separate catalog items even though the datasheet describes them together.
+- "positions" are the fixed character slots that make up the base order code itself (the datasheet usually shows these as "X XX X X..." with a table of what each slot means). "suffixes" are separate codes appended AFTER the base code as optional extras — often introduced with wording like "add one or more codes after the basic ordering information." Do not force a large block of optional extras into "positions" just because it's large — if the source text describes it as something added on afterward, it belongs in "suffixes" even if there are many of them.
+- Datasheets often include numbered footnotes describing which codes are incompatible with which other codes (e.g. "not available with Output code V, W"). This flat schema can't represent those dependencies structurally — do not try to encode them into meaning/description text for every affected option. Instead, note in "notes" that such dependency footnotes exist and should be checked manually before quoting, without attempting to enumerate all of them.
 - Do not invent order codes, options, or suffixes that aren't actually present in the source text.`;
 
 function getConfig() {
@@ -82,7 +84,7 @@ export async function extractCatalogFromText(rawText) {
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
       body: JSON.stringify({
         model,
-        max_tokens: 8000,
+        max_tokens: 16000, // gpt-4o's output ceiling is 16384 — dense datasheets (large "additional ordering" suffix sections especially) can genuinely need this much; the previous 8000 cap risked silent truncation on documents like a 130+-entry ABB pressure transmitter sheet.
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
