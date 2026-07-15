@@ -5,6 +5,7 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 import { extractPdfText } from "../catalog/extractPdfText.js";
 import { extractCatalogFromText } from "../catalog/extractCatalogFromText.js";
 import { commitCatalogExtraction } from "../catalog/commitCatalogExtraction.js";
+import { exportManufacturerAsSql } from "../catalog/exportCatalogSql.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -44,6 +45,50 @@ router.post("/manufacturers", async (req, res) => {
   } catch (err) {
     if (err.code === "23505") return res.status(409).json({ error: "A manufacturer with that name already exists" });
     throw err;
+  }
+});
+
+// GET /api/catalog/browse — every family currently in the database,
+// grouped by manufacturer, with counts so the page can show what's
+// actually there without loading every position/option up front.
+router.get("/browse", async (req, res) => {
+  const { rows } = await query(
+    `SELECT f.id, f.base_code, f.family, f.short_name, f.instrument_type,
+            m.id AS manufacturer_id, m.name AS manufacturer_name,
+            (SELECT COUNT(*) FROM siemens_positions WHERE family_id = f.id) AS position_count,
+            (SELECT COUNT(*) FROM siemens_suffixes WHERE family_id = f.id) AS suffix_count
+     FROM siemens_families f
+     JOIN manufacturers m ON m.id = f.manufacturer_id
+     ORDER BY m.name, f.family`
+  );
+
+  const byManufacturer = {};
+  for (const row of rows) {
+    if (!byManufacturer[row.manufacturer_id]) {
+      byManufacturer[row.manufacturer_id] = { manufacturerId: row.manufacturer_id, manufacturerName: row.manufacturer_name, families: [] };
+    }
+    byManufacturer[row.manufacturer_id].families.push({
+      id: row.id, baseCode: row.base_code, family: row.family, shortName: row.short_name,
+      instrumentType: row.instrument_type, positionCount: Number(row.position_count), suffixCount: Number(row.suffix_count),
+    });
+  }
+  res.json(Object.values(byManufacturer));
+});
+
+// GET /api/catalog/export/:manufacturerId — downloads everything under
+// one manufacturer as a portable, idempotent .sql file, ready to commit
+// to any other repo's migrations folder. Solves the gap where catalog
+// data added through this UI otherwise only exists in this one database.
+router.get("/export/:manufacturerId", async (req, res) => {
+  try {
+    const sql = await exportManufacturerAsSql(req.params.manufacturerId);
+    const mfg = (await query(`SELECT name FROM manufacturers WHERE id = $1`, [req.params.manufacturerId])).rows[0];
+    const filename = `catalog_${(mfg?.name || "export").toLowerCase().replace(/[^a-z0-9]+/g, "_")}.sql`;
+    res.setHeader("Content-Type", "application/sql");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(sql);
+  } catch (err) {
+    res.status(404).json({ error: err.message || "Export failed" });
   }
 });
 

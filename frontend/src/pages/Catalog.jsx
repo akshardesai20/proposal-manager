@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.js";
 
-export default function CatalogImport() {
+export default function Catalog() {
+  const [browse, setBrowse] = useState([]); // [{ manufacturerId, manufacturerName, families: [...] }]
+  const [browseLoading, setBrowseLoading] = useState(true);
+  const [browseError, setBrowseError] = useState("");
+  const [expandedMfg, setExpandedMfg] = useState(null);
+  const [exportingMfgId, setExportingMfgId] = useState(null);
+
   const [manufacturers, setManufacturers] = useState([]);
   const [manufacturerId, setManufacturerId] = useState("");
   const [newMfgName, setNewMfgName] = useState("");
@@ -19,12 +25,33 @@ export default function CatalogImport() {
   const [commitError, setCommitError] = useState("");
   const [commitResult, setCommitResult] = useState(null);
 
+  function refreshBrowse() {
+    setBrowseLoading(true);
+    setBrowseError("");
+    api.browseCatalog()
+      .then(setBrowse)
+      .catch((err) => setBrowseError(err.message || "Failed to load catalog"))
+      .finally(() => setBrowseLoading(false));
+  }
+
   useEffect(() => {
+    refreshBrowse();
     api.listManufacturers().then((rows) => {
       setManufacturers(rows);
       if (rows.length) setManufacturerId(String(rows[0].id));
     });
   }, []);
+
+  async function handleExport(mfgId, mfgName) {
+    setExportingMfgId(mfgId);
+    try {
+      await api.exportManufacturerCatalog(mfgId, mfgName);
+    } catch (err) {
+      alert(err.message || "Export failed");
+    } finally {
+      setExportingMfgId(null);
+    }
+  }
 
   async function handleAddManufacturer() {
     if (!newMfgName.trim()) return;
@@ -83,6 +110,7 @@ export default function CatalogImport() {
       setCommitResult(result);
       setExtracted(null);
       setFile(null);
+      refreshBrowse();
     } catch (err) {
       setCommitError(err.message || "Failed to save");
     } finally {
@@ -95,7 +123,72 @@ export default function CatalogImport() {
       <div style={{ fontSize: 11, letterSpacing: 0.6, textTransform: "uppercase", color: "var(--text-faint)", marginBottom: 4 }}>
         Admin
       </div>
-      <h1 style={{ fontSize: 24, marginBottom: 8 }}>Catalog Import</h1>
+      <h1 style={{ fontSize: 24, marginBottom: 8 }}>Catalog</h1>
+      <p style={{ color: "var(--text-dim)", fontSize: 13, marginBottom: 24, maxWidth: 640 }}>
+        Everything currently in your catalog, organized by manufacturer — plus the ability to add more via AI-assisted
+        import from a datasheet PDF.
+      </p>
+
+      <div className="card" style={{ padding: 20, marginBottom: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Existing catalog</div>
+        {browseLoading ? (
+          <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>Loading…</div>
+        ) : browseError ? (
+          <div style={{ fontSize: 12.5, color: "var(--red)" }}>{browseError}</div>
+        ) : !browse.length ? (
+          <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>Nothing in the catalog yet — import your first datasheet below.</div>
+        ) : (
+          browse.map((mfg) => (
+            <div key={mfg.manufacturerId} style={{ borderTop: "1px solid var(--line-soft)", paddingTop: 12, marginTop: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <div
+                  style={{ fontSize: 13.5, fontWeight: 700, cursor: "pointer" }}
+                  onClick={() => setExpandedMfg(expandedMfg === mfg.manufacturerId ? null : mfg.manufacturerId)}
+                >
+                  {expandedMfg === mfg.manufacturerId ? "▾" : "▸"} {mfg.manufacturerName}
+                  <span style={{ fontWeight: 400, color: "var(--text-faint)", marginLeft: 8, fontSize: 12 }}>
+                    {mfg.families.length} famil{mfg.families.length === 1 ? "y" : "ies"}
+                  </span>
+                </div>
+                <button
+                  className="btn-ghost"
+                  onClick={() => handleExport(mfg.manufacturerId, mfg.manufacturerName)}
+                  disabled={exportingMfgId === mfg.manufacturerId}
+                  style={{ fontSize: 11, padding: "4px 10px" }}
+                >
+                  {exportingMfgId === mfg.manufacturerId ? "Exporting…" : "Export as .sql"}
+                </button>
+              </div>
+              {expandedMfg === mfg.manufacturerId && (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--line)" }}>
+                      <th style={{ textAlign: "left", padding: "6px 8px", fontSize: 10.5, color: "var(--text-faint)", textTransform: "uppercase" }}>Base Code</th>
+                      <th style={{ textAlign: "left", padding: "6px 8px", fontSize: 10.5, color: "var(--text-faint)", textTransform: "uppercase" }}>Family</th>
+                      <th style={{ textAlign: "left", padding: "6px 8px", fontSize: 10.5, color: "var(--text-faint)", textTransform: "uppercase" }}>Type</th>
+                      <th style={{ textAlign: "left", padding: "6px 8px", fontSize: 10.5, color: "var(--text-faint)", textTransform: "uppercase" }}>Positions</th>
+                      <th style={{ textAlign: "left", padding: "6px 8px", fontSize: 10.5, color: "var(--text-faint)", textTransform: "uppercase" }}>Suffixes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mfg.families.map((f) => (
+                      <tr key={f.id} style={{ borderBottom: "1px solid var(--line-soft)" }}>
+                        <td style={{ padding: "6px 8px" }}><span className="ref-stamp">{f.baseCode}</span></td>
+                        <td style={{ padding: "6px 8px" }}>{f.family}</td>
+                        <td style={{ padding: "6px 8px", color: "var(--text-faint)" }}>{f.instrumentType || "—"}</td>
+                        <td style={{ padding: "6px 8px" }}>{f.positionCount}</td>
+                        <td style={{ padding: "6px 8px" }}>{f.suffixCount}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      <h2 style={{ fontSize: 16, marginBottom: 8, marginTop: 32 }}>Import a new datasheet</h2>
       <p style={{ color: "var(--text-dim)", fontSize: 13, marginBottom: 24, maxWidth: 640 }}>
         Upload a manufacturer's datasheet PDF (ideally one product family per document) and AI will extract the
         order-code structure. <b>Nothing is saved until you review it below</b> — always check the position/option

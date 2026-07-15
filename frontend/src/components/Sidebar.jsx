@@ -29,7 +29,7 @@ const ADMIN_NAV_ITEMS = [
   // catalog domain reviewing the output, so it's opt-in per instance
   // rather than something every customer's admin account can reach.
   ...(import.meta.env.VITE_CATALOG_IMPORT_ENABLED === "true"
-    ? [{ to: "/catalog-import", label: "Catalog Import", icon: "\uD83D\uDCD8" }]
+    ? [{ to: "/catalog-import", label: "Catalog", icon: "\uD83D\uDCD8" }]
     : []),
 ];
 

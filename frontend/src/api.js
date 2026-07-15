@@ -307,6 +307,23 @@ export const api = {
       body: JSON.stringify({ manufacturerId, families, addons }),
     }).then(handle),
 
+  browseCatalog: () =>
+    fetch(`${BASE}/catalog-import/browse`, { headers: authHeaders() }).then(handle),
+
+  exportManufacturerCatalog: async (manufacturerId, manufacturerName) => {
+    const res = await fetch(`${BASE}/catalog-import/export/${manufacturerId}`, { headers: authHeaders() });
+    if (!res.ok) throw new Error("Failed to export catalog");
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `catalog_${(manufacturerName || "export").toLowerCase().replace(/[^a-z0-9]+/g, "_")}.sql`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
   listInquiries: (status = "pending") =>
     fetch(`${BASE}/inquiries?status=${encodeURIComponent(status)}`, { headers: authHeaders() }).then(handle),
 
