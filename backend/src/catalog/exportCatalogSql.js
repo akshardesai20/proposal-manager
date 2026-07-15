@@ -11,30 +11,15 @@ function sqlLiteral(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
-// Builds a downloadable migration file for everything under one
-// manufacturer — every family, position, option, and suffix — using the
-// exact same ON CONFLICT DO NOTHING idempotent pattern as every
-// hand-written catalog migration in this project, so it's safe to apply
-// to any database, including one that already has some overlapping data.
-export async function exportManufacturerAsSql(manufacturerId) {
-  const mfg = (await query(`SELECT * FROM manufacturers WHERE id = $1`, [manufacturerId])).rows[0];
-  if (!mfg) throw new Error("Manufacturer not found");
-
-  const families = (await query(
-    `SELECT * FROM siemens_families WHERE manufacturer_id = $1 ORDER BY family`, [manufacturerId]
-  )).rows;
-
-  const lines = [
-    `-- Catalog export: ${mfg.name}`,
-    `-- Generated ${new Date().toISOString()} from the Catalog page.`,
-    `-- Safe to run on any database — every insert below uses ON CONFLICT DO NOTHING,`,
-    `-- so re-running this (or applying it alongside other catalog data) never duplicates rows.`,
-    ``,
-    `INSERT INTO manufacturers (name) VALUES (${sqlLiteral(mfg.name)}) ON CONFLICT (name) DO NOTHING;`,
-    ``,
-  ];
+// Core builder — takes an explicit list of family rows (already fetched)
+// and writes the full migration text for exactly those families, nothing
+// more. Both entry points below (whole-manufacturer, and just-these-ids)
+// funnel through this, so there's one place that generates the actual SQL.
+async function buildSqlForFamilies(families, headerLines) {
+  const lines = [...headerLines, ""];
 
   for (const fam of families) {
+    const mfg = (await query(`SELECT name FROM manufacturers WHERE id = $1`, [fam.manufacturer_id])).rows[0];
     lines.push(`-- ${fam.family} (${fam.base_code})`);
     lines.push(
       `INSERT INTO siemens_families (base_code, family, short_name, description, trade_name, instrument_type, manufacturer_id) ` +
@@ -76,4 +61,48 @@ export async function exportManufacturerAsSql(manufacturerId) {
   }
 
   return lines.join("\n");
+}
+
+// Everything under one manufacturer — for a full "give me their whole
+// catalog" export, e.g. setting up a brand-new deployment from scratch.
+export async function exportManufacturerAsSql(manufacturerId) {
+  const mfg = (await query(`SELECT * FROM manufacturers WHERE id = $1`, [manufacturerId])).rows[0];
+  if (!mfg) throw new Error("Manufacturer not found");
+
+  const families = (await query(
+    `SELECT * FROM siemens_families WHERE manufacturer_id = $1 ORDER BY family`, [manufacturerId]
+  )).rows;
+
+  return buildSqlForFamilies(families, [
+    `-- Catalog export: ${mfg.name} (complete)`,
+    `-- Generated ${new Date().toISOString()} from the Catalog page.`,
+    `-- Safe to run on any database — every insert below uses ON CONFLICT DO NOTHING,`,
+    `-- so re-running this (or applying it alongside other catalog data) never duplicates rows.`,
+    ``,
+    `INSERT INTO manufacturers (name) VALUES (${sqlLiteral(mfg.name)}) ON CONFLICT (name) DO NOTHING;`,
+  ]);
+}
+
+// Just the specific families given — e.g. only what a single import
+// session just added, rather than a manufacturer's entire history.
+export async function exportFamiliesAsSql(familyIds) {
+  if (!familyIds || !familyIds.length) throw new Error("No families specified");
+
+  const families = (await query(
+    `SELECT * FROM siemens_families WHERE id = ANY($1::int[]) ORDER BY family`, [familyIds]
+  )).rows;
+  if (!families.length) throw new Error("None of those families were found");
+
+  const mfgIds = [...new Set(families.map((f) => f.manufacturer_id))];
+  const mfgs = (await query(`SELECT name FROM manufacturers WHERE id = ANY($1::int[])`, [mfgIds])).rows;
+
+  return buildSqlForFamilies(families, [
+    `-- Catalog export: newly imported families (${families.map((f) => f.family).join(", ")})`,
+    `-- Manufacturer(s): ${mfgs.map((m) => m.name).join(", ")}`,
+    `-- Generated ${new Date().toISOString()} from the Catalog page.`,
+    `-- Safe to run on any database — every insert below uses ON CONFLICT DO NOTHING,`,
+    `-- so re-running this (or applying it alongside other catalog data) never duplicates rows.`,
+    ``,
+    ...mfgs.map((m) => `INSERT INTO manufacturers (name) VALUES (${sqlLiteral(m.name)}) ON CONFLICT (name) DO NOTHING;`),
+  ]);
 }

@@ -324,6 +324,26 @@ export const api = {
     URL.revokeObjectURL(url);
   },
 
+  // Exports only the specific families given — e.g. just what a single
+  // import session added, not that manufacturer's whole catalog history.
+  exportNewFamilies: async (familyIds) => {
+    const res = await fetch(`${BASE}/catalog-import/export-families`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ familyIds }),
+    });
+    if (!res.ok) throw new Error("Failed to export");
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "catalog_new_import.sql";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
   listInquiries: (status = "pending") =>
     fetch(`${BASE}/inquiries?status=${encodeURIComponent(status)}`, { headers: authHeaders() }).then(handle),
 

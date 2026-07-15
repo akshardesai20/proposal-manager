@@ -5,7 +5,7 @@ import { requireAuth, requireRole } from "../middleware/auth.js";
 import { extractPdfText } from "../catalog/extractPdfText.js";
 import { extractCatalogFromText } from "../catalog/extractCatalogFromText.js";
 import { commitCatalogExtraction } from "../catalog/commitCatalogExtraction.js";
-import { exportManufacturerAsSql } from "../catalog/exportCatalogSql.js";
+import { exportManufacturerAsSql, exportFamiliesAsSql } from "../catalog/exportCatalogSql.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -86,6 +86,23 @@ router.get("/export/:manufacturerId", async (req, res) => {
     const filename = `catalog_${(mfg?.name || "export").toLowerCase().replace(/[^a-z0-9]+/g, "_")}.sql`;
     res.setHeader("Content-Type", "application/sql");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(sql);
+  } catch (err) {
+    res.status(404).json({ error: err.message || "Export failed" });
+  }
+});
+
+// POST /api/catalog/export-families — body: { familyIds: [...] }. Same
+// output format as the manufacturer-wide export, but scoped to exactly
+// the families given — used right after an import to export only what
+// was just captured, not that manufacturer's whole accumulated history.
+router.post("/export-families", async (req, res) => {
+  const { familyIds } = req.body;
+  if (!Array.isArray(familyIds) || !familyIds.length) return res.status(400).json({ error: "No families specified" });
+  try {
+    const sql = await exportFamiliesAsSql(familyIds);
+    res.setHeader("Content-Type", "application/sql");
+    res.setHeader("Content-Disposition", `attachment; filename="catalog_new_import.sql"`);
     res.send(sql);
   } catch (err) {
     res.status(404).json({ error: err.message || "Export failed" });

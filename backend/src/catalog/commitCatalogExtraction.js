@@ -8,7 +8,7 @@ import { pool } from "../db.js";
 // half-written.
 export async function commitCatalogExtraction({ manufacturerId, families, addons }) {
   const client = await pool.connect();
-  const result = { familiesCreated: 0, familiesSkipped: 0, addonsCreated: 0 };
+  const result = { familiesCreated: 0, familiesSkipped: 0, addonsCreated: 0, createdFamilyIds: [], allFamilyIds: [] };
   try {
     await client.query("BEGIN");
 
@@ -34,7 +34,9 @@ export async function commitCatalogExtraction({ manufacturerId, families, addons
         if (!familyId) continue;
       } else {
         result.familiesCreated++;
+        result.createdFamilyIds.push(familyId);
       }
+      result.allFamilyIds.push(familyId);
 
       for (const pos of fam.positions || []) {
         if (!pos.position_no || !pos.name) continue;

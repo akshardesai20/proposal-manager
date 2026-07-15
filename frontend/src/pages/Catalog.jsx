@@ -297,10 +297,19 @@ export default function Catalog() {
 
       {commitResult && (
         <div className="card" style={{ padding: 20, borderLeft: "3px solid var(--green)" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--green)" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--green)", marginBottom: commitResult.createdFamilyIds?.length ? 10 : 0 }}>
             Saved — {commitResult.familiesCreated} new famil{commitResult.familiesCreated === 1 ? "y" : "ies"} added
             {commitResult.familiesSkipped > 0 && `, ${commitResult.familiesSkipped} already existed (skipped)`}.
           </div>
+          {!!commitResult.createdFamilyIds?.length && (
+            <button
+              className="btn-ghost"
+              onClick={() => api.exportNewFamilies(commitResult.createdFamilyIds).catch((err) => alert(err.message))}
+              style={{ fontSize: 11.5, padding: "5px 12px" }}
+            >
+              Export just this import as .sql
+            </button>
+          )}
         </div>
       )}
     </div>
